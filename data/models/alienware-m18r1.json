@@ -1,0 +1,49 @@
+{
+ "id": "alienware-m18r1",
+ "name": "Alienware m18R1",
+ "dmi_product": [
+  "Alienware m18 R1",
+  "Alienware m18 R1 AMD"
+ ],
+ "support": "reported",
+ "source": "alienfx-tools devices.csv @ 52713b2 (MIT), community mapping for 187c:0551.",
+ "keyboard": {
+  "type": "per-key"
+ },
+ "zones": [
+  {
+   "id": "l0",
+   "label": "Tron Bottom",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 0
+  },
+  {
+   "id": "l1",
+   "label": "Tron Top",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 1
+  },
+  {
+   "id": "l2",
+   "label": "Logo",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 2
+  },
+  {
+   "id": "l4",
+   "label": "Power Button",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 4,
+   "role": "power"
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}

@@ -1,0 +1,53 @@
+{
+ "id": "alienware-m15-r7",
+ "name": "Alienware m15 R7",
+ "dmi_product": [
+  "Alienware m15 R7"
+ ],
+ "support": "verified",
+ "source": "Measured with a camera on an Alienware m15 R7 (Intel, BIOS 1.41.0): every key id and every chassis zone. See docs/m15-r7.md.",
+ "keyboard": {
+  "type": "per-key",
+  "chassis": [
+   "alienware-m15-r7-azerty",
+   "alienware-m15-r7-qwerty-uk",
+   "alienware-m15-r7-qwerty-us"
+  ]
+ },
+ "zones": [
+  {
+   "id": "power",
+   "label": "Power button",
+   "controller": "elc",
+   "index": 2,
+   "role": "power",
+   "group": "chassis",
+   "verified": true,
+   "note": "Colour verified on camera; pulse and morph are sent the same way as on the logo but were never seen on the button."
+  },
+  {
+   "id": "lid",
+   "label": "Lid alien logo",
+   "controller": "elc",
+   "index": 3,
+   "group": "chassis",
+   "verified": true
+  },
+  {
+   "id": "rear0",
+   "label": "Rear LEDs A (top left, bottom right)",
+   "controller": "elc",
+   "index": 0,
+   "group": "chassis",
+   "verified": true
+  },
+  {
+   "id": "rear1",
+   "label": "Rear LEDs B (top right, bottom left)",
+   "controller": "elc",
+   "index": 1,
+   "group": "chassis",
+   "verified": true
+  }
+ ]
+}

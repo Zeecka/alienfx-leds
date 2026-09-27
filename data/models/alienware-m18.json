@@ -1,0 +1,46 @@
+{
+ "id": "alienware-m18",
+ "name": "Alienware m18",
+ "dmi_product": [],
+ "support": "reported",
+ "source": "alienfx-tools devices.csv @ 52713b2 (MIT), community mapping for 187c:0551.",
+ "keyboard": {
+  "type": "per-key"
+ },
+ "zones": [
+  {
+   "id": "l0",
+   "label": "Rear Vents 1",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 0
+  },
+  {
+   "id": "l1",
+   "label": "Rear Vents 2",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 1
+  },
+  {
+   "id": "l2",
+   "label": "Lid Logo",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 2
+  },
+  {
+   "id": "l4",
+   "label": "Power",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 4,
+   "role": "power"
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}

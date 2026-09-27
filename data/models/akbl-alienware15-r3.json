@@ -1,0 +1,120 @@
+{
+ "id": "akbl-alienware15-r3",
+ "name": "Alienware15 R3",
+ "dmi_product": [],
+ "usb": [
+  "187c:0530"
+ ],
+ "support": "reported",
+ "source": "akbl Alienware15R3.ini @ dd67196 (GPL-3.0 data file; masks and names only).",
+ "keyboard": {
+  "type": "zones"
+ },
+ "zones": [
+  {
+   "id": "ah",
+   "label": "Alienware HEAD",
+   "controller": "legacy",
+   "mask": 32,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "al",
+   "label": "Alienware Logo",
+   "controller": "legacy",
+   "mask": 64,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "lck",
+   "label": "Keyboard: Left-Center",
+   "controller": "legacy",
+   "mask": 4,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "lk",
+   "label": "Keyboard: Left",
+   "controller": "legacy",
+   "mask": 8,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "pb",
+   "label": "Power Button",
+   "controller": "legacy",
+   "mask": 256,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "rck",
+   "label": "Keyboard: Right-Center",
+   "controller": "legacy",
+   "mask": 2,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "rk",
+   "label": "Keyboard: Right",
+   "controller": "legacy",
+   "mask": 1,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "pbe",
+   "label": "Side: Left Bottom",
+   "controller": "legacy",
+   "mask": 1024,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "ls",
+   "label": "Side: Left Top",
+   "controller": "legacy",
+   "mask": 4096,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "mb",
+   "label": "Side: Right Top",
+   "controller": "legacy",
+   "mask": 8192,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "rs",
+   "label": "Side: Right Bottom",
+   "controller": "legacy",
+   "mask": 2048,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "tp",
+   "label": "Touch Pad",
+   "controller": "legacy",
+   "mask": 128,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "tx",
+   "label": "Tact-X",
+   "controller": "legacy",
+   "mask": 16384,
+   "group": "chassis",
+   "verified": false
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}

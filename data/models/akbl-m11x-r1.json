@@ -1,0 +1,64 @@
+{
+ "id": "akbl-m11x-r1",
+ "name": "Alienware M11X R1",
+ "dmi_product": [],
+ "usb": [
+  "187c:0514"
+ ],
+ "support": "reported",
+ "source": "akbl M11XR1.ini @ dd67196 (GPL-3.0 data file; masks and names only).",
+ "keyboard": {
+  "type": "zones"
+ },
+ "zones": [
+  {
+   "id": "kb",
+   "label": "Keyboard",
+   "controller": "legacy",
+   "mask": 1,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "rs",
+   "label": "Speaker: Right",
+   "controller": "legacy",
+   "mask": 32,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "ls",
+   "label": "Speaker: Left",
+   "controller": "legacy",
+   "mask": 64,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "al",
+   "label": "Alienware Logo",
+   "controller": "legacy",
+   "mask": 256,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "mb",
+   "label": "Media Bar",
+   "controller": "legacy",
+   "mask": 2048,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "pb",
+   "label": "Power Button",
+   "controller": "legacy",
+   "mask": 24576,
+   "group": "chassis",
+   "verified": false
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}

@@ -1,0 +1,45 @@
+{
+ "id": "dell-g5-5515",
+ "name": "Dell G5 5515",
+ "dmi_product": [],
+ "support": "reported",
+ "source": "alienfx-tools devices.csv @ 52713b2 (MIT), community mapping for 187c:0550.",
+ "keyboard": {
+  "type": "zones"
+ },
+ "zones": [
+  {
+   "id": "l8",
+   "label": "KB LEFT",
+   "controller": "elc",
+   "group": "keyboard",
+   "verified": false,
+   "index": 8
+  },
+  {
+   "id": "l9",
+   "label": "KB LEFT MID",
+   "controller": "elc",
+   "group": "keyboard",
+   "verified": false,
+   "index": 9
+  },
+  {
+   "id": "l10",
+   "label": "KB RIGHT MID",
+   "controller": "elc",
+   "group": "keyboard",
+   "verified": false,
+   "index": 10
+  },
+  {
+   "id": "l11",
+   "label": "KB RIGHT",
+   "controller": "elc",
+   "group": "keyboard",
+   "verified": false,
+   "index": 11
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}

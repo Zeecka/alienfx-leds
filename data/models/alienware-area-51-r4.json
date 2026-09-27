@@ -1,0 +1,88 @@
+{
+ "id": "alienware-area-51-r4",
+ "name": "Alienware Area 51 R4",
+ "dmi_product": [],
+ "support": "reported",
+ "source": "alienfx-tools devices.csv @ 52713b2 (MIT), community mapping for 187c:0526.",
+ "keyboard": {
+  "type": "none"
+ },
+ "zones": [
+  {
+   "id": "l0",
+   "label": "right panel, top",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 1
+  },
+  {
+   "id": "l1",
+   "label": "right panel, forward",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 2
+  },
+  {
+   "id": "l2",
+   "label": "right panel, rear",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 4
+  },
+  {
+   "id": "l5",
+   "label": "left panel, top",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 32
+  },
+  {
+   "id": "l6",
+   "label": "left panel, rear",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 64
+  },
+  {
+   "id": "l7",
+   "label": "left panel, forward",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 128
+  },
+  {
+   "id": "l10",
+   "label": "alien head power button",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 1024
+  },
+  {
+   "id": "l11",
+   "label": "front panel, left",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 2048
+  },
+  {
+   "id": "l12",
+   "label": "front panel, right",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 4096
+  }
+ ],
+ "usb": [
+  "187c:0526"
+ ],
+ "generated_by": "tools/import_models.py"
+}

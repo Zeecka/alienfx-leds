@@ -1,0 +1,40 @@
+{
+ "id": "alienware-m16r2-us",
+ "name": "Alienware m16R2 (US)",
+ "dmi_product": [
+  "Alienware m16 R2"
+ ],
+ "support": "reported",
+ "source": "alienfx-tools devices.csv @ 52713b2 (MIT), community mapping for 187c:0551.",
+ "keyboard": {
+  "type": "per-key"
+ },
+ "zones": [
+  {
+   "id": "l0",
+   "label": "haptic",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 0
+  },
+  {
+   "id": "l2",
+   "label": "back",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 2
+  },
+  {
+   "id": "l4",
+   "label": "Power",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 4,
+   "role": "power"
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}

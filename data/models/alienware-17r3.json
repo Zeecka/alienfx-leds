@@ -1,0 +1,136 @@
+{
+ "id": "alienware-17r3",
+ "name": "Alienware 17R3",
+ "dmi_product": [],
+ "support": "reported",
+ "source": "alienfx-tools devices.csv @ 52713b2 (MIT), community mapping for 187c:0528.",
+ "keyboard": {
+  "type": "none"
+ },
+ "zones": [
+  {
+   "id": "l0",
+   "label": "Numpad",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 1
+  },
+  {
+   "id": "l1",
+   "label": "F10cluster",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 2
+  },
+  {
+   "id": "l2",
+   "label": "F5 cluster",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 4
+  },
+  {
+   "id": "l3",
+   "label": "Esc cluster",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 8
+  },
+  {
+   "id": "l4",
+   "label": "power led",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 16
+  },
+  {
+   "id": "l5",
+   "label": "Back lid",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 32
+  },
+  {
+   "id": "l6",
+   "label": "power led2",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 64
+  },
+  {
+   "id": "l7",
+   "label": "Activity light",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 128
+  },
+  {
+   "id": "l8",
+   "label": "charging state?",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 256
+  },
+  {
+   "id": "l9",
+   "label": "HDD LED",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 512
+  },
+  {
+   "id": "l10",
+   "label": "trackpad",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 1024
+  },
+  {
+   "id": "l11",
+   "label": "Left under glow",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 2048
+  },
+  {
+   "id": "l12",
+   "label": "Right under glow",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 4096
+  },
+  {
+   "id": "l13",
+   "label": "Extra keys",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 8192
+  },
+  {
+   "id": "l14",
+   "label": "IDK",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 16384
+  }
+ ],
+ "usb": [
+  "187c:0528"
+ ],
+ "generated_by": "tools/import_models.py"
+}

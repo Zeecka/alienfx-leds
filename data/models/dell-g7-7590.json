@@ -1,0 +1,45 @@
+{
+ "id": "dell-g7-7590",
+ "name": "Dell G7 7590",
+ "dmi_product": [],
+ "support": "reported",
+ "source": "alienfx-tools devices.csv @ 52713b2 (MIT), community mapping for 187c:0550.",
+ "keyboard": {
+  "type": "zones"
+ },
+ "zones": [
+  {
+   "id": "l0",
+   "label": "KB left",
+   "controller": "elc",
+   "group": "keyboard",
+   "verified": false,
+   "index": 0
+  },
+  {
+   "id": "l1",
+   "label": "KB middle",
+   "controller": "elc",
+   "group": "keyboard",
+   "verified": false,
+   "index": 1
+  },
+  {
+   "id": "l2",
+   "label": "KB right",
+   "controller": "elc",
+   "group": "keyboard",
+   "verified": false,
+   "index": 2
+  },
+  {
+   "id": "l3",
+   "label": "KB numpad",
+   "controller": "elc",
+   "group": "keyboard",
+   "verified": false,
+   "index": 3
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}

@@ -1,0 +1,104 @@
+{
+ "id": "akbl-area51-r2",
+ "name": "Alienware Area51 R2",
+ "dmi_product": [],
+ "usb": [
+  "187c:0526"
+ ],
+ "support": "reported",
+ "source": "akbl Area51R2.ini @ dd67196 (GPL-3.0 data file; masks and names only).",
+ "keyboard": {
+  "type": "zones"
+ },
+ "zones": [
+  {
+   "id": "rk",
+   "label": "Keyboard: Right",
+   "controller": "legacy",
+   "mask": 8,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "rck",
+   "label": "Keyboard: Right-Center",
+   "controller": "legacy",
+   "mask": 4,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "rs",
+   "label": "Speaker: Right",
+   "controller": "legacy",
+   "mask": 64,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "lk",
+   "label": "Keyboard: Left",
+   "controller": "legacy",
+   "mask": 1,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "lck",
+   "label": "Keyboard: Left-Center",
+   "controller": "legacy",
+   "mask": 2,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "ls",
+   "label": "Speaker: Left",
+   "controller": "legacy",
+   "mask": 32,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "mb",
+   "label": "Media Bar",
+   "controller": "legacy",
+   "mask": 7168,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "tp",
+   "label": "Touch Pad",
+   "controller": "legacy",
+   "mask": 512,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "ah",
+   "label": "Alienware Head",
+   "controller": "legacy",
+   "mask": 128,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "al",
+   "label": "Alienware Logo",
+   "controller": "legacy",
+   "mask": 256,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "pb",
+   "label": "Power Button",
+   "controller": "legacy",
+   "mask": 8192,
+   "group": "chassis",
+   "verified": false
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}

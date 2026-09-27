@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=AlienFX LEDs
+GenericName=Keyboard lighting
+Comment=Per-key keyboard colours, effects and chassis lights for Alienware laptops
+Exec=alienfx-leds
+Icon=io.github.zeecka.AlienFix
+Terminal=false
+Categories=Settings;HardwareSettings;GTK;
+Keywords=Alienware;AlienFX;RGB;LED;keyboard;backlight;lighting;
+StartupNotify=true
+StartupWMClass=io.github.zeecka.AlienFix

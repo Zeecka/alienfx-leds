@@ -1,0 +1,47 @@
+{
+ "id": "dell-g15-5530",
+ "name": "Dell G15 5530",
+ "dmi_product": [
+  "Dell G15 5530"
+ ],
+ "source": "OpenRGB platform 0x0E0A: zones 0x10-0x13.",
+ "zones": [
+  {
+   "id": "kb0",
+   "label": "Keyboard left",
+   "controller": "elc",
+   "index": 16,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "kb1",
+   "label": "Keyboard centre-left",
+   "controller": "elc",
+   "index": 17,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "kb2",
+   "label": "Keyboard centre-right",
+   "controller": "elc",
+   "index": 18,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "kb3",
+   "label": "Keyboard right",
+   "controller": "elc",
+   "index": 19,
+   "group": "keyboard",
+   "verified": false
+  }
+ ],
+ "support": "reported",
+ "keyboard": {
+  "type": "zones"
+ },
+ "generated_by": "tools/import_models.py"
+}

@@ -1,0 +1,39 @@
+{
+ "id": "alienware-m17r5",
+ "name": "Alienware m17R5",
+ "dmi_product": [
+  "Alienware m17 R5 AMD"
+ ],
+ "support": "reported",
+ "source": "alienfx-tools devices.csv @ 52713b2 (MIT), community mapping for 187c:0550.",
+ "keyboard": {
+  "type": "per-key"
+ },
+ "zones": [
+  {
+   "id": "l0",
+   "label": "Left of Tron",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 0
+  },
+  {
+   "id": "l1",
+   "label": "Right of Tron",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 1
+  },
+  {
+   "id": "l2",
+   "label": "Power button",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 2
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}

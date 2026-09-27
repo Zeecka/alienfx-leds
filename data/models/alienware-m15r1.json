@@ -1,0 +1,64 @@
+{
+ "id": "alienware-m15r1",
+ "name": "Alienware m15R1",
+ "dmi_product": [
+  "Alienware m15"
+ ],
+ "support": "reported",
+ "source": "alienfx-tools devices.csv @ 52713b2 (MIT), community mapping for 187c:0550.",
+ "keyboard": {
+  "type": "zones"
+ },
+ "zones": [
+  {
+   "id": "l0",
+   "label": "Alienhead",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 0
+  },
+  {
+   "id": "l1",
+   "label": "Power Button",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 1,
+   "role": "power"
+  },
+  {
+   "id": "l2",
+   "label": "KB Left",
+   "controller": "elc",
+   "group": "keyboard",
+   "verified": false,
+   "index": 2
+  },
+  {
+   "id": "l3",
+   "label": "KB Center-Left",
+   "controller": "elc",
+   "group": "keyboard",
+   "verified": false,
+   "index": 3
+  },
+  {
+   "id": "l4",
+   "label": "KB Center-Right",
+   "controller": "elc",
+   "group": "keyboard",
+   "verified": false,
+   "index": 4
+  },
+  {
+   "id": "l5",
+   "label": "KB Right",
+   "controller": "elc",
+   "group": "keyboard",
+   "verified": false,
+   "index": 5
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}

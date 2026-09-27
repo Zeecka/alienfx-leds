@@ -1,0 +1,72 @@
+{
+ "id": "alienware-13",
+ "name": "Alienware 13",
+ "dmi_product": [],
+ "support": "reported",
+ "source": "alienfx-tools devices.csv @ 52713b2 (MIT), community mapping for 187c:0527.",
+ "keyboard": {
+  "type": "zones"
+ },
+ "zones": [
+  {
+   "id": "l0",
+   "label": "Keyboard right",
+   "controller": "legacy",
+   "group": "keyboard",
+   "verified": false,
+   "mask": 1
+  },
+  {
+   "id": "l1",
+   "label": "Keyboard center-right",
+   "controller": "legacy",
+   "group": "keyboard",
+   "verified": false,
+   "mask": 2
+  },
+  {
+   "id": "l2",
+   "label": "Keyboard center-left",
+   "controller": "legacy",
+   "group": "keyboard",
+   "verified": false,
+   "mask": 4
+  },
+  {
+   "id": "l3",
+   "label": "Keyboard left",
+   "controller": "legacy",
+   "group": "keyboard",
+   "verified": false,
+   "mask": 8
+  },
+  {
+   "id": "l5",
+   "label": "Front logo",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 32
+  },
+  {
+   "id": "l6",
+   "label": "Screen logo",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 64
+  },
+  {
+   "id": "l8",
+   "label": "Power",
+   "controller": "legacy",
+   "group": "chassis",
+   "verified": false,
+   "mask": 256
+  }
+ ],
+ "usb": [
+  "187c:0527"
+ ],
+ "generated_by": "tools/import_models.py"
+}

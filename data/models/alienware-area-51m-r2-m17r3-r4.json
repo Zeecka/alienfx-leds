@@ -1,0 +1,56 @@
+{
+ "id": "alienware-area-51m-r2-m17r3-r4",
+ "name": "Alienware Area-51m R2/m17R3/R4",
+ "dmi_product": [
+  "Alienware Area-51m R2"
+ ],
+ "support": "reported",
+ "source": "alienfx-tools devices.csv @ 52713b2 (MIT), community mapping for 187c:0550.",
+ "keyboard": {
+  "type": "per-key"
+ },
+ "zones": [
+  {
+   "id": "l0",
+   "label": "Alien Head",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 0
+  },
+  {
+   "id": "l1",
+   "label": "Touchpad",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 1
+  },
+  {
+   "id": "l2",
+   "label": "Power Button",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 2,
+   "role": "power"
+  },
+  {
+   "id": "l3",
+   "label": "Ring Top",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 3
+  },
+  {
+   "id": "l4",
+   "label": "Ring Bottom",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 4
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}

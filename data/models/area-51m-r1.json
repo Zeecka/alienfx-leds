@@ -1,0 +1,56 @@
+{
+ "id": "area-51m-r1",
+ "name": "Area 51m R1",
+ "dmi_product": [
+  "Alienware Area-51m"
+ ],
+ "support": "reported",
+ "source": "alienfx-tools devices.csv @ 52713b2 (MIT), community mapping for 187c:0550.",
+ "keyboard": {
+  "type": "per-key"
+ },
+ "zones": [
+  {
+   "id": "l0",
+   "label": "Lid Logo",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 0
+  },
+  {
+   "id": "l1",
+   "label": "Touchpad",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 1
+  },
+  {
+   "id": "l2",
+   "label": "Power Button",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 2,
+   "role": "power"
+  },
+  {
+   "id": "l3",
+   "label": "Rear Vents 1",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 3
+  },
+  {
+   "id": "l4",
+   "label": "Rear Vents 2",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 4
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}

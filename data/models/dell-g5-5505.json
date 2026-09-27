@@ -1,0 +1,47 @@
+{
+ "id": "dell-g5-5505",
+ "name": "Dell G5 15 SE 5505",
+ "dmi_product": [
+  "G5 5505"
+ ],
+ "source": "OpenRGB platform 0x0C01 (Left, Middle, Right, Numpad = 00-03); DMI name from AWCC database.json.",
+ "zones": [
+  {
+   "id": "kb0",
+   "label": "Keyboard left",
+   "controller": "elc",
+   "index": 0,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "kb1",
+   "label": "Keyboard middle",
+   "controller": "elc",
+   "index": 1,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "kb2",
+   "label": "Keyboard right",
+   "controller": "elc",
+   "index": 2,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "kb3",
+   "label": "Numpad",
+   "controller": "elc",
+   "index": 3,
+   "group": "keyboard",
+   "verified": false
+  }
+ ],
+ "support": "reported",
+ "keyboard": {
+  "type": "zones"
+ },
+ "generated_by": "tools/import_models.py"
+}

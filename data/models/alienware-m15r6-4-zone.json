@@ -1,0 +1,71 @@
+{
+ "id": "alienware-m15r6-4-zone",
+ "name": "Alienware m15R6 4-zone",
+ "dmi_product": [
+  "Alienware m15 R6"
+ ],
+ "support": "reported",
+ "source": "alienfx-tools devices.csv @ 52713b2 (MIT), community mapping for 187c:0550.",
+ "keyboard": {
+  "type": "per-key"
+ },
+ "zones": [
+  {
+   "id": "l0",
+   "label": "TRON-BackRight",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 0
+  },
+  {
+   "id": "l1",
+   "label": "TRON-BackLeft",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 1
+  },
+  {
+   "id": "l3",
+   "label": "BackAlienHead",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 3
+  },
+  {
+   "id": "l4",
+   "label": "Left",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 4
+  },
+  {
+   "id": "l5",
+   "label": "Center-Left",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 5
+  },
+  {
+   "id": "l6",
+   "label": "Center-Right",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 6
+  },
+  {
+   "id": "l7",
+   "label": "Right",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 7
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}

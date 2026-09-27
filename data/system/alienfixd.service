@@ -1,0 +1,55 @@
+[Unit]
+Description=AlienFX LEDs lighting daemon (Alienware / Dell keyboard and chassis lights)
+Documentation=file:///usr/local/share/doc/alienfix/README.md
+
+[Service]
+Type=dbus
+BusName=io.github.zeecka.AlienFix
+ExecStart=/usr/local/bin/alienfixd
+StateDirectory=alienfix
+StateDirectoryMode=0700
+Restart=on-failure
+RestartSec=2
+
+# root, but with no capabilities at all: it only needs to open root-owned
+# 0600 hidraw nodes (and, on pre-2018 desktops, the root-owned 0644 files of
+# alienware-wmi rgb_zones), which uid 0 can do as their owner without CAP_DAC_*.
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=yes
+# Devices: nothing but hidraw character devices.
+DevicePolicy=closed
+DeviceAllow=char-hidraw rw
+# Filesystem: read-only everywhere except its StateDirectory.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+# the only writable place in /sys: the kernel's legacy lighting zones, if any
+ReadWritePaths=-/sys/devices/platform/alienware-wmi/rgb_zones
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+# Only the D-Bus socket; no network.
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+IPAddressDeny=any
+# Syscalls: the systemd "system service" set only.
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

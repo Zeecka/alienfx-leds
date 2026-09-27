@@ -1,0 +1,31 @@
+{
+ "id": "alienware-aurora-r12",
+ "name": "Alienware Aurora R12",
+ "dmi_product": [
+  "Alienware Aurora R12"
+ ],
+ "support": "reported",
+ "source": "alienfx-tools devices.csv @ 52713b2 (MIT), community mapping for 187c:0550.",
+ "keyboard": {
+  "type": "none"
+ },
+ "zones": [
+  {
+   "id": "l0",
+   "label": "Front Ring",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 0
+  },
+  {
+   "id": "l1",
+   "label": "Alienhead/Power Button",
+   "controller": "elc",
+   "group": "chassis",
+   "verified": false,
+   "index": 1
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}

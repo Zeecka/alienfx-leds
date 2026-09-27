@@ -1,0 +1,126 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<!--
+  alienfixd lighting interface. Bus: system. Name: io.github.zeecka.AlienFix
+  Object: /io/github/zeecka/AlienFix
+
+  This is deliberately narrow: lighting only, no raw report pass-through.
+  Every mutating method is authorised by polkit (action
+  io.github.zeecka.alienfix.control: active local session only) and every
+  argument is validated by the daemon before it reaches the hardware.
+-->
+<node>
+  <interface name="io.github.zeecka.AlienFix1">
+
+    <!-- Read-only: full current state as JSON (see docs/dbus-api.md). -->
+    <method name="GetState">
+      <arg name="state_json" type="s" direction="out"/>
+    </method>
+
+    <!-- Read-only: the machine as JSON: model (id, name, support, keyboard
+         type), zones (id, label, group, verified, effects), keyboard effects,
+         and for a per-key keyboard its geometry and key map:
+         {"model": {...}, "zones": [...], "keys": {"<id>": {"name","legend","row","u","v"}}} -->
+    <method name="GetLayout">
+      <arg name="layout_json" type="s" direction="out"/>
+    </method>
+
+    <!-- Read-only: chassis templates, the model catalogue, this machine's DMI
+         product name, detected controllers and the active profile, as JSON. -->
+    <method name="ListChassis">
+      <arg name="info_json" type="s" direction="out"/>
+    </method>
+
+    <!-- Store a per-machine profile {name, chassis, method, keys: {KEYNAME: [ids]}}.
+         Validated strictly (known template, known key names, ids 0..254 used
+         once, short printable name) and made active; emits LayoutChanged. -->
+    <method name="SaveProfile">
+      <arg name="profile_json" type="s" direction="in"/>
+    </method>
+
+    <!-- Drop the stored profile and go back to the shipped one. -->
+    <method name="ResetProfile"/>
+
+    <!-- Use one of the shipped models (ListChassis "models"), or "" to go back
+         to automatic detection (DMI product name, then USB id). Emits
+         LayoutChanged. -->
+    <method name="SelectModel">
+      <arg name="model_id" type="s" direction="in"/>
+    </method>
+
+    <!-- Whole keyboard one colour (per-key keyboard: static mode; zone
+         keyboard: every keyboard zone). -->
+    <method name="SetKeyboardColor">
+      <arg name="r" type="y" direction="in"/>
+      <arg name="g" type="y" direction="in"/>
+      <arg name="b" type="y" direction="in"/>
+    </method>
+
+    <!-- Per-key colours (static mode). ids: canonical 0..139 present in the
+         layout; at most 140 entries. Keys not listed keep their colour. -->
+    <method name="SetKeys">
+      <arg name="keys" type="a(yyyy)" direction="in"/>
+    </method>
+
+    <!-- Keyboard effect. Per-key keyboard: hardware (firmware) static,
+         breathing, wave, pulse, mixpulse, nightrider; software (rendered by
+         the daemon) rainbow, spectrum, morph, starlight, gradient. Zone
+         keyboard: the names GetLayout lists in "effects" (run by the
+         controller). tempo 1..30 (period, larger = slower; wave period is
+         about 0.6 s x tempo). c2 used by wave, mixpulse and morph. -->
+    <method name="SetKeyboardEffect">
+      <arg name="name" type="s" direction="in"/>
+      <arg name="tempo" type="y" direction="in"/>
+      <arg name="c1" type="(yyy)" direction="in"/>
+      <arg name="c2" type="(yyy)" direction="in"/>
+    </method>
+
+    <!-- 0..100. Keyboard: hardware dimmer. Chassis: colour scaling
+         (no hardware dimmer observed). -->
+    <method name="SetBrightness">
+      <arg name="percent" type="y" direction="in"/>
+    </method>
+
+    <!-- zone: one of GetLayout "zones" ids (m15 R7: power, lid, rear0, rear1). -->
+    <method name="SetZoneColor">
+      <arg name="zone" type="s" direction="in"/>
+      <arg name="r" type="y" direction="in"/>
+      <arg name="g" type="y" direction="in"/>
+      <arg name="b" type="y" direction="in"/>
+    </method>
+
+    <!-- Zone effect. zone: one of GetLayout "zones"; name: one of that zone's
+         "effects" (AW-ELC zones: static, pulse, morph c1 -> c2; legacy and
+         WMI zones: static). -->
+    <method name="SetZoneEffect">
+      <arg name="zone" type="s" direction="in"/>
+      <arg name="name" type="s" direction="in"/>
+      <arg name="tempo" type="y" direction="in"/>
+      <arg name="c1" type="(yyy)" direction="in"/>
+      <arg name="c2" type="(yyy)" direction="in"/>
+    </method>
+
+    <!-- All lighting off (false) or back to the saved state (true). -->
+    <method name="SetEnabled">
+      <arg name="enabled" type="b" direction="in"/>
+    </method>
+
+    <!-- Live mode for client-side animations (the reactive ripple, the
+         profile wizard's blinking). LiveFrame accepts any id 0..254.
+         Frames are transient: never saved. Live mode ends on EndLive, or
+         automatically when the caller leaves the bus, and the saved state is
+         restored. Frames are merged while the keyboard is busy: the
+         latest colour of every id always reaches the hardware. -->
+    <method name="BeginLive"/>
+    <method name="LiveFrame">
+      <arg name="keys" type="a(yyyy)" direction="in"/>
+    </method>
+    <method name="EndLive"/>
+
+    <signal name="LayoutChanged"/>
+
+    <signal name="StateChanged">
+      <arg name="state_json" type="s"/>
+    </signal>
+  </interface>
+</node>

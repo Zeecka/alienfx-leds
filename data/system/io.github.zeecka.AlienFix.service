@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=io.github.zeecka.AlienFix
+Exec=/bin/false
+User=root
+SystemdService=alienfixd.service

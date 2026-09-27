@@ -1,0 +1,88 @@
+{
+ "id": "akbl-alienware13-r1",
+ "name": "Alienware13 R1",
+ "dmi_product": [],
+ "usb": [
+  "187c:0527"
+ ],
+ "support": "reported",
+ "source": "akbl Alienware13R1.ini @ dd67196 (GPL-3.0 data file; masks and names only).",
+ "keyboard": {
+  "type": "zones"
+ },
+ "zones": [
+  {
+   "id": "rk",
+   "label": "Keyboard: Right",
+   "controller": "legacy",
+   "mask": 1,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "rck",
+   "label": "Keyboard: Right-Center",
+   "controller": "legacy",
+   "mask": 2,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "lk",
+   "label": "Keyboard: Left",
+   "controller": "legacy",
+   "mask": 8,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "lck",
+   "label": "Keyboard: Left-Center",
+   "controller": "legacy",
+   "mask": 4,
+   "group": "keyboard",
+   "verified": false
+  },
+  {
+   "id": "ah",
+   "label": "Alienware Head",
+   "controller": "legacy",
+   "mask": 256,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "al",
+   "label": "Alienware Logo",
+   "controller": "legacy",
+   "mask": 64,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "hdd",
+   "label": "Hard Drive",
+   "controller": "legacy",
+   "mask": 512,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "cl",
+   "label": "Caps Lock",
+   "controller": "legacy",
+   "mask": 128,
+   "group": "chassis",
+   "verified": false
+  },
+  {
+   "id": "ol",
+   "label": "Outer Lid",
+   "controller": "legacy",
+   "mask": 32,
+   "group": "chassis",
+   "verified": false
+  }
+ ],
+ "generated_by": "tools/import_models.py"
+}
