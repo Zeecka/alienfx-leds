@@ -63,6 +63,8 @@
                "effect": {"name": "wave", "tempo": 7, "c1": [255, 0, 0], "c2": [0, 0, 255]}},
   "zones": {"power": [255, 255, 255], "lid": [0, 128, 255]},
   "zone_effects": {"lid": {"name": "pulse", "tempo": 6, "c2": [0, 0, 0]}},
+  "ripple": {"enabled": false, "color": [255, 110, 0], "speed": 10, "under": "effect",
+             "background": [0, 0, 25], "available": true},
   "live": false,
   "devices": {"keyboard": true, "elc": true, "legacy": false, "wmi": false, "usb": ["0d62:dabc", "187c:0550"]}
 }
@@ -79,6 +81,7 @@
 | `SetZoneColor(s zone, y r, y g, y b)` | Static colour for one zone. |
 | `SetZoneEffect(s zone, s name, y tempo, (yyy) c1, (yyy) c2)` | `name` must be in that zone's `effects`: AW-ELC zones take static, pulse and morph (c1 → c2); legacy and WMI zones take static only. |
 | `SetEnabled(b)` | All lights off, or back to the saved state. |
+| `SetRipple(b enabled, (yyy) color, y speed, s under, (yyy) background)` | Typing ripple, saved with the state. Per-key keyboards only (`ripple.available`). See below. |
 | `SelectModel(s id)` | Use one of the shipped models (`ListChassis` → `models`); `""` goes back to automatic detection. Emits `LayoutChanged`. |
 | `ListChassis()` → JSON | Keyboard templates, the model catalogue, the active model, the DMI product name and the detected controllers. |
 | `SaveProfile(s)` / `ResetProfile()` | Store or drop a per-key key map, see below. |
@@ -97,6 +100,23 @@
 The map is stored in `/var/lib/alienfix/profile.json` and becomes active.
 `ResetProfile` goes back to the shipped map of the active model, if there is
 one.
+
+## Typing ripple
+
+When `enabled`, each key pressed on the built-in keyboard sends a ring of
+`color` across it at `speed` keys per second (2..40). The ring fades out
+after about 9 keys. `under` is `"effect"` (rings over the current colours or
+effect) or `"color"` (over `background`).
+
+- The daemon reads key presses (evdev) **only while the ripple is on** and
+  the lighting is enabled. It reads only the built-in keyboard: the USB
+  device that is also the lighting keyboard, and the i8042 keyboard.
+  External keyboards are never opened.
+- A key code only becomes a position on the keyboard. It is not stored,
+  logged or sent, and there is no grab.
+- While the ripple is on, the daemon draws every frame. Firmware effects are
+  then replaced by software look-alikes, close to them but not identical
+  (only the wave period is measured).
 
 ## Live mode
 

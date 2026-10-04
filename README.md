@@ -55,9 +55,14 @@ X11, reload the shell (Alt+F2, `r`), then run
   - **Keyboard**: per-key drawing to scale, or keyboard zones.
   - **Effects**: one effect applied to any mix of lighting groups.
   - **Chassis**: zones.
-  - **Ripple**: a ripple on each key typed, in the app window only.
+  - **Ripple**: a ring of colour from each key typed on the built-in
+    keyboard, in any window. Colour, speed (2 to 40 keys per second) and
+    what shows underneath (the current colours or effect, or a plain
+    colour) are saved by the service. Firmware effects cannot run under
+    per-key frames, so the service redraws them while the ripple is on.
+    Those copies are approximations: only the wave period is measured.
   - **Machine**: detected model, model choice, key map wizard.
-- **Quick Settings.** On/off, brightness, presets.
+- **Quick Settings.** On/off, brightness, presets, ripple on/off.
 - **CLI:**
 
   ```
@@ -95,8 +100,13 @@ project does not do that. Instead:
   [docs/dbus-api.md](docs/dbus-api.md) describes the interface.
 - **polkit.** The active local session may change the lighting. Remote and
   inactive sessions may not.
-- **Ripple.** The typing ripple reads keys **only in its own window, while it
-  has the focus**, after you switch it on. There is no global key capture.
+- **Ripple.** The ripple is off by default. Switching it on goes through
+  polkit like any change. While it is on, the service reads key presses of
+  the **built-in keyboard only**: the lighting keyboard's own USB device and
+  the i8042 keyboard. External keyboards are never opened, and there is no
+  grab. A key press only becomes a position for the ring; it is not stored,
+  logged or sent. When the ripple or the lighting is off, the input devices
+  are closed.
 
 ## How it was built
 

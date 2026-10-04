@@ -13,6 +13,9 @@ Environment:
   MOCK_FAST=1       no simulated hardware delay (default: 64 ms per ELC
                     command, like the real controller).
   MOCK_DENY=1       refuse every mutating call with Error.NotAuthorized.
+  MOCK_KEYS=<path>  read key presses for the ripple from this file (a FIFO
+                    fed with struct input_event records) instead of the
+                    built-in keyboard, which a user cannot open anyway.
 """
 import logging
 import os
@@ -31,6 +34,7 @@ from alienfix import daemon, models  # noqa: E402
 MODEL = os.environ.get("MOCK_MODEL", "alienware-m15-r7")
 FAST = os.environ.get("MOCK_FAST") == "1"
 DENY = os.environ.get("MOCK_DENY") == "1"
+KEYS = os.environ.get("MOCK_KEYS")
 log = logging.getLogger("mock-hw")
 
 
@@ -51,6 +55,9 @@ class FakeHardware:
 
     def wmi_zone_count(self):
         return 2 if self._presence["wmi"] else 0
+
+    def keyboard_usb(self):
+        return "0d62:dabc" if self._presence["keyboard"] else None
 
     def _cmd(self, what, n=1):
         log.info(what)
@@ -88,6 +95,16 @@ class FakeHardware:
 
 
 class MockDaemon(daemon.Daemon):
+    def __init__(self, bus_type):
+        super().__init__(bus_type)
+        self.keys.find = lambda _usb: [KEYS] if KEYS else []
+        self.key_log = 0
+
+    def _on_key_press(self, code):
+        super()._on_key_press(code)
+        self.key_log += 1
+        log.info("key press #%d -> ripple", self.key_log)     # the count only, like the real one
+
     def _on_call(self, conn, sender, path, iface, method, params, inv):
         if DENY and method not in daemon.READ_ONLY:
             inv.return_dbus_error(daemon.ERR + "NotAuthorized", "not allowed (MOCK_DENY)")

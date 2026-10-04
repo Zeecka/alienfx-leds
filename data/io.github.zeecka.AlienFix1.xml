@@ -105,8 +105,23 @@
       <arg name="enabled" type="b" direction="in"/>
     </method>
 
-    <!-- Live mode for client-side animations (the reactive ripple, the
-         profile wizard's blinking). LiveFrame accepts any id 0..254.
+    <!-- Typing ripple (per-key keyboards), saved like the rest of the
+         state. When enabled, each key pressed on the built-in keyboard
+         sends a ring of colour across it; the daemon reads key presses only
+         while it is on, and keeps nothing about them. speed: 2..40 keys per
+         second. under: "effect" (rings over the current colours or effect;
+         firmware effects are then redrawn in software) or "color" (over
+         background). Not authorised on keyboards without per-key lighting. -->
+    <method name="SetRipple">
+      <arg name="enabled" type="b" direction="in"/>
+      <arg name="color" type="(yyy)" direction="in"/>
+      <arg name="speed" type="y" direction="in"/>
+      <arg name="under" type="s" direction="in"/>
+      <arg name="background" type="(yyy)" direction="in"/>
+    </method>
+
+    <!-- Live mode for client-side animations (the profile wizard's
+         blinking). LiveFrame accepts any id 0..254.
          Frames are transient: never saved. Live mode ends on EndLive, or
          automatically when the caller leaves the bus, and the saved state is
          restored. Frames are merged while the keyboard is busy: the

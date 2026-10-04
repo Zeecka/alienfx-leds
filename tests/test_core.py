@@ -187,6 +187,97 @@ class Effects(unittest.TestCase):
         self.assertGreater(f[0][0], f[2][0])
         self.assertLess(f[0][2], f[2][2])
 
+    def test_every_keyboard_effect_can_be_redrawn(self):
+        for name in validate.EFFECTS:
+            if name == "static":
+                continue
+            r = self.E.any_renderer(name)
+            for t in (0, 0.37, 5.2):
+                f = r(self.POS, 16, t, 5, (255, 0, 10), (0, 30, 255))
+                self.assertEqual(set(f), set(self.POS), name)
+                for c in f.values():
+                    self.assertTrue(all(isinstance(x, int) and 0 <= x <= 255 for x in c), (name, c))
+
+    def test_wave_lookalike_loops_with_the_measured_period(self):
+        p = self.E.period(4)                                   # measured: 0.6 s x tempo
+        self.assertEqual(self.E.wave(self.POS, 16, 1.0, 4, (255, 0, 0), (0, 0, 255)),
+                         self.E.wave(self.POS, 16, 1.0 + p, 4, (255, 0, 0), (0, 0, 255)))
+
+
+class Ripple(unittest.TestCase):
+    from alienfix import effects as E
+    from alienfix import keycodes as K
+
+    def test_speed_sets_where_the_ring_is(self):
+        E = self.E                                   # after 0.5 s: 2 keys out at 4 u/s, 5 at 10 u/s
+        self.assertGreater(E.ripple_intensity(2.0, 0.5, speed=4), 0.5)
+        self.assertEqual(E.ripple_intensity(5.0, 0.5, speed=4), 0.0)
+        self.assertGreater(E.ripple_intensity(5.0, 0.5, speed=10), 0.4)
+        self.assertEqual(E.ripple_intensity(2.0, 0.5, speed=10), 0.0)
+
+    def test_the_ring_always_reaches_the_same_distance(self):
+        E = self.E
+        for speed in E.RIPPLE_SPEEDS:
+            life = E.Ripple(0, 0, 0, (1, 1, 1), speed).life
+            self.assertAlmostEqual(speed * life, E.RIPPLE_REACH)
+            self.assertEqual(E.ripple_intensity(E.RIPPLE_REACH, life, speed), 0.0)
+
+    def test_ripple_paints_over_the_current_effect(self):
+        E = self.E
+        pos = {0: (0.0, 0.0), 1: (12.0, 0.0)}
+        base = E.gradient(pos, 12, 0, 5, (255, 0, 0), (0, 0, 255))
+        out = E.ripple_over(base, [E.Ripple(0.0, 0.0, 0.0, (0, 255, 0), speed=10)], 0.0, pos)
+        self.assertEqual(out[0], (0, 255, 0))              # under the ring: the ripple colour
+        self.assertEqual(out[1], (0, 0, 255))              # elsewhere: the effect untouched
+
+    def test_ripple_validation(self):
+        r = validate.ripple(True, (1, 2, 3), 12, "color", (4, 5, 6))
+        self.assertEqual(r, {"enabled": True, "color": [1, 2, 3], "speed": 12, "under": "color",
+                             "background": [4, 5, 6]})
+        for bad in ((1, (1, 2, 3), 12, "effect", (0, 0, 0)), (True, (1, 2, 3), 1, "effect", (0, 0, 0)),
+                    (True, (1, 2, 3), 41, "effect", (0, 0, 0)), (True, (1, 2, 3), 10, "x", (0, 0, 0)),
+                    (True, (1, 2, 300), 10, "effect", (0, 0, 0))):
+            with self.assertRaises(validate.Invalid):
+                validate.ripple(*bad)
+
+    def test_ripple_settings_are_saved_and_off_by_default(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "state.json"
+            s = State(p, IDS, ZONE_IDS)
+            self.assertFalse(s.data["ripple"]["enabled"])
+            s.data["ripple"] = validate.ripple(True, (9, 9, 9), 25, "color", (1, 1, 1))
+            s.save()
+            self.assertEqual(State(p, IDS, ZONE_IDS).data["ripple"]["speed"], 25)
+            self.assertTrue(State(p, IDS, ZONE_IDS).data["ripple"]["enabled"])
+            p.write_text(json.dumps({"ripple": {"enabled": True, "speed": 99}}))     # hostile: ignored
+            self.assertFalse(State(p, IDS, ZONE_IDS).data["ripple"]["enabled"])
+
+    def test_only_key_presses_are_kept(self):
+        K = self.K
+        ev = lambda t, c, v: K.EVENT.pack(0, 0, t, c, v)          # noqa: E731
+        data = ev(4, 4, 30) + ev(1, 30, 1) + ev(0, 0, 0) + ev(1, 30, 2) + ev(1, 30, 0) + ev(1, 57, 1)
+        self.assertEqual(K.presses(data), [30, 57])               # no repeat, no release, no scan code
+
+    def test_only_the_builtin_keyboard_is_read(self):
+        K = self.K
+        letters = 1 << 30 | 1 << 44 | 1 << 57
+
+        def dev(root, n, bus, vid, pid, keys):
+            d = Path(root, "class/input", f"event{n}", "device")
+            (d / "id").mkdir(parents=True)
+            (d / "capabilities").mkdir()
+            for name, v in (("bustype", bus), ("vendor", vid), ("product", pid)):
+                (d / "id" / name).write_text("%04x\n" % v)
+            (d / "capabilities/key").write_text("%x 0\n" % keys if keys > 1 << 64 else "%x\n" % keys)
+
+        with tempfile.TemporaryDirectory() as root:
+            dev(root, 2, 0x11, 1, 1, letters)                     # laptop i8042 keyboard
+            dev(root, 10, 0x03, 0x0D62, 0xDABC, letters)          # the per-key lighting keyboard
+            dev(root, 11, 0x03, 0x046D, 0xC31C, letters)          # external USB keyboard
+            dev(root, 12, 0x03, 0x0D62, 0xDABC, 1 << 113)         # same device, media keys only
+            self.assertEqual(K.builtin_keyboards("0d62:dabc", root), ["/dev/input/event10", "/dev/input/event2"])
+            self.assertEqual(K.builtin_keyboards(None, root), ["/dev/input/event2"])
+
 
 class ZoneEffects(unittest.TestCase):
     def test_zone_effect_validation(self):

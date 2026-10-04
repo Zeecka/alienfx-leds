@@ -12,14 +12,17 @@ Restart=on-failure
 RestartSec=2
 
 # root, but with no capabilities at all: it only needs to open root-owned
-# 0600 hidraw nodes (and, on pre-2018 desktops, the root-owned 0644 files of
-# alienware-wmi rgb_zones), which uid 0 can do as their owner without CAP_DAC_*.
+# 0600 hidraw nodes, root-owned 0660 evdev nodes (typing ripple) and, on
+# pre-2018 desktops, the root-owned 0644 files of alienware-wmi rgb_zones,
+# which uid 0 can do as their owner without CAP_DAC_*.
 CapabilityBoundingSet=
 AmbientCapabilities=
 NoNewPrivileges=yes
-# Devices: nothing but hidraw character devices.
+# Devices: hidraw character devices, and input devices read-only for the
+# typing ripple (only the built-in keyboard, only while the ripple is on).
 DevicePolicy=closed
 DeviceAllow=char-hidraw rw
+DeviceAllow=char-input r
 # Filesystem: read-only everywhere except its StateDirectory.
 ProtectSystem=strict
 ProtectHome=yes

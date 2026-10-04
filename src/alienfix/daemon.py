@@ -1,7 +1,9 @@
 """alienfixd: owns the lighting controllers, exposes a narrow D-Bus API.
 
 - Runs as a confined system service; it is the only process that opens the
-  keyboard node, which also carries keystrokes.
+  keyboard node, which also carries keystrokes. While the typing ripple is
+  on (off by default), it also reads key presses of the built-in keyboard
+  (keycodes.py) to place the rings; nothing about them is kept.
 - What the machine has (per-key keyboard, zones, which controller drives
   each zone) comes from its model (models.py, data/models/).
 - Every mutating call is authorised by polkit, then validated (validate.py),
@@ -22,7 +24,7 @@ from pathlib import Path
 
 from gi.repository import Gio, GLib
 
-from . import effects, models, profile, protocol, validate
+from . import effects, keycodes, models, profile, protocol, validate
 from .devices import Hardware
 from .state import State
 
@@ -93,6 +95,9 @@ class Daemon:
         self.kb_worker = Worker("keyboard", self._apply_keyboard)
         self.soft_on = False          # keyboard already in per-key mode for a software effect
         self.anim_wake = threading.Event()
+        self.ripples = []             # rings in flight (under self.lock)
+        self.evdev_names = keycodes.load_evdev_names()
+        self.keys = keycodes.KeyWatcher(self._on_key_press, self.hw.keyboard_usb())
         self.elc_worker = Worker("chassis", self._apply_chassis)
         self.bus_type = bus_type
         self.conn = None
@@ -148,6 +153,8 @@ class Daemon:
         self.profile = prof
         self.layout = profile.layout(prof, self.templates[prof["chassis"]])
         self.key_ids = {int(k) for k in self.layout["keys"]}
+        geo = profile.key_geometry(self.templates[prof["chassis"]])
+        self.key_origin = {name: (g["u"], g["v"]) for name, g in geo.items()}   # keys without LED too
         if getattr(self, "state", None):
             self.state.key_ids = sorted(self.key_ids)
         log.info("profile %r on chassis %s (%d ids, %s)", prof["name"], prof["chassis"],
@@ -168,6 +175,7 @@ class Daemon:
             mode, effect = d["keyboard"]["mode"], dict(d["keyboard"]["effect"])
             colors = self.state.key_colors()
             live = self.live_owner is not None
+            soft = self._soft(d)
         if "frame" in job and live:
             self.hw.keyboard_frame(sorted(job["frame"].items()), enter_custom=job.get("enter", False))
             self._count_frame()
@@ -175,7 +183,6 @@ class Daemon:
         if live:
             self.soft_on = False
             return
-        soft = enabled and mode == "effect" and effect["name"] in effects.SOFTWARE
         if "soft" in job and not job.get("full"):
             if soft:
                 if not self.soft_on:
@@ -225,36 +232,83 @@ class Daemon:
 
     # ---- software effects (daemon-rendered keyboard animation) -------------
 
+    def _soft(self, d):
+        """Whether the daemon draws the keyboard frame by frame: a software
+        effect, or anything under the typing ripple. Caller holds the lock."""
+        return (d["enabled"] and self.live_owner is None and self.kb_type == "per-key"
+                and (d["ripple"]["enabled"] or (d["keyboard"]["mode"] == "effect"
+                                                and d["keyboard"]["effect"]["name"] in effects.SOFTWARE)))
+
     def _animate(self):
-        """Render software keyboard effects at ~25 fps while one is selected."""
-        render, current, t0 = None, None, time.monotonic()
+        """Render the keyboard in software (~25 fps while something moves)."""
+        current, render, t0, drawn = None, None, time.monotonic(), False
         while True:
+            now = time.monotonic()
             with self.lock:
                 d = self.state.data
-                eff = dict(d["keyboard"]["effect"])
-                active = (d["enabled"] and d["keyboard"]["mode"] == "effect"
-                          and eff["name"] in effects.SOFTWARE and self.live_owner is None)
+                active = self._soft(d)
+                kb, eff, rp = d["keyboard"], dict(d["keyboard"]["effect"]), dict(d["ripple"])
+                colors = self.state.key_colors()
                 pos = {int(k): (v["u"], v["v"]) for k, v in self.layout["keys"].items()}
                 width = self.layout["chassis"]["width"]
-            if not active or self.kb_type != "per-key":
+                self.ripples = [r for r in self.ripples if now - r.t0 < r.life]
+                ripples = list(self.ripples) if rp["enabled"] else []
+            if not active:
                 current = None
                 self.anim_wake.wait(0.5)
                 self.anim_wake.clear()
                 continue
-            key = (eff["name"], eff["tempo"], tuple(eff["c1"]), tuple(eff["c2"]), len(pos))
+            if rp["enabled"] and rp["under"] == "color":
+                key = ("color", tuple(rp["background"]))
+            elif kb["mode"] == "effect":
+                key = ("effect", eff["name"], eff["tempo"], tuple(eff["c1"]), tuple(eff["c2"]))
+            else:
+                key = ("static", tuple(sorted(colors.items())))
+            key += (len(pos),)
             if key != current:
-                render, current, t0 = effects.renderer(eff["name"]), key, time.monotonic()
-                drawn_static = False
-            if eff["name"] not in effects.ANIMATED:           # gradient: draw once
-                if not drawn_static or not self.soft_on:
-                    self.kb_worker.request(soft=render(pos, width, 0, eff["tempo"], eff["c1"], eff["c2"]))
-                    drawn_static = True
+                current, t0, drawn = key, now, False
+                render = effects.any_renderer(eff["name"]) if key[0] == "effect" else None
+            if render:
+                base = render(pos, width, now - t0, eff["tempo"], eff["c1"], eff["c2"])
+            elif key[0] == "color":
+                base = {i: tuple(rp["background"]) for i in pos}
+            else:
+                base = colors
+            moving = bool(ripples) or (render is not None and (eff["name"] in effects.ANIMATED
+                                                                or eff["name"] in effects.LOOKALIKE))
+            if moving or not drawn or not self.soft_on:
+                self.kb_worker.request(soft=effects.ripple_over(base, ripples, now, pos) if ripples else base)
+                drawn = not ripples           # once the last ring is gone, draw a clean frame
+            if moving:
+                time.sleep(0.04)
+            else:
                 self.anim_wake.wait(0.5)
                 self.anim_wake.clear()
-                continue
-            frame = render(pos, width, time.monotonic() - t0, eff["tempo"], eff["c1"], eff["c2"])
-            self.kb_worker.request(soft=frame)
-            time.sleep(0.04)
+
+    def _on_key_press(self, code):
+        """KeyWatcher thread: a ring from the pressed key. The code is dropped here."""
+        origin = self.key_origin.get(self.evdev_names.get(code))
+        if origin is None:
+            return
+        with self.lock:
+            rp = self.state.data["ripple"]
+            if not rp["enabled"]:
+                return
+            self.ripples.append(effects.Ripple(*origin, time.monotonic(), rp["color"], rp["speed"]))
+            del self.ripples[:-effects.RIPPLE_MAX]
+        self.anim_wake.set()
+
+    def _sync_keys(self):
+        """Read key presses only while a ripple can be drawn."""
+        with self.lock:
+            d = self.state.data
+            want = d["enabled"] and d["ripple"]["enabled"] and self.kb_type == "per-key"
+        if want and not self.keys.running:
+            self.keys.start()
+        elif not want and self.keys.running:
+            self.keys.stop()
+            with self.lock:
+                self.ripples.clear()
 
     def _count_frame(self):
         """Count live frames that actually reached the hardware."""
@@ -271,6 +325,7 @@ class Daemon:
         self.elc_worker.start()
         threading.Thread(target=self._animate, name="animator", daemon=True).start()
         self.apply_all()
+        self._sync_keys()
         bt = Gio.BusType.SESSION if self.bus_type == "session" else Gio.BusType.SYSTEM
         info = Gio.DBusNodeInfo.new_for_xml((DATA / f"{IFACE}.xml").read_text()).interfaces[0]
         self.conn = Gio.bus_get_sync(bt, None)
@@ -338,9 +393,10 @@ class Daemon:
     def _changed(self, keyboard=False, zones=False, power=False):
         with self.lock:
             self.state.save()
-            js = self.state.public(self.live_owner is not None, self.hw.presence())
+            js = self.state.public(self.live_owner is not None, self.hw.presence(), self.kb_type == "per-key")
         if keyboard:
             self.kb_worker.request(full=True)
+            self._sync_keys()
         if zones or power:
             self.elc_worker.request(zones=zones, power=power)
         self.conn.emit_signal(None, PATH, IFACE, "StateChanged", GLib.Variant("(s)", (js,)))
@@ -349,7 +405,8 @@ class Daemon:
 
     def m_GetState(self, _s):
         with self.lock:
-            return GLib.Variant("(s)", (self.state.public(self.live_owner is not None, self.hw.presence()),))
+            js = self.state.public(self.live_owner is not None, self.hw.presence(), self.kb_type == "per-key")
+            return GLib.Variant("(s)", (js,))
 
     def _keyboard_effects(self):
         if self.kb_type == "per-key":
@@ -491,6 +548,13 @@ class Daemon:
         with self.lock:
             self.state.data["enabled"] = enabled
         self._changed(keyboard=True, zones=True, power=True)
+
+    def m_SetRipple(self, _s, enabled, rgb, speed, under, background):
+        self._need_per_key()
+        rp = validate.ripple(enabled, rgb, speed, under, background)
+        with self.lock:
+            self.state.data["ripple"] = rp
+        self._changed(keyboard=True)
 
     def m_BeginLive(self, sender):
         self._need_per_key()

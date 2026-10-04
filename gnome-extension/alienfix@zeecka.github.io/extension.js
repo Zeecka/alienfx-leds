@@ -43,6 +43,13 @@ const IFACE_XML = `
     <method name="SetEnabled">
       <arg name="enabled" type="b" direction="in"/>
     </method>
+    <method name="SetRipple">
+      <arg name="enabled" type="b" direction="in"/>
+      <arg name="color" type="(yyy)" direction="in"/>
+      <arg name="speed" type="y" direction="in"/>
+      <arg name="under" type="s" direction="in"/>
+      <arg name="background" type="(yyy)" direction="in"/>
+    </method>
     <signal name="StateChanged">
       <arg name="state_json" type="s"/>
     </signal>
@@ -147,6 +154,12 @@ class AlienFixIndicator extends QuickSettings.SystemIndicator {
         this._connect(this._slider, 'notify::value',
             () => this._onSliderChanged());
         menu.addMenuItem(this._sliderItem);
+
+        // Typing ripple: the daemon draws it and saves it (per-key keyboards only).
+        this._rippleItem = new PopupMenu.PopupSwitchMenuItem('Typing ripple', false);
+        this._connect(this._rippleItem, 'toggled',
+            (_item, on) => this._setRipple(on));
+        menu.addMenuItem(this._rippleItem);
 
         this._presetItems = PRESETS.map(preset => {
             const item = new PopupMenu.PopupMenuItem(preset.label);
@@ -299,6 +312,10 @@ class AlienFixIndicator extends QuickSettings.SystemIndicator {
         this._toggle.reactive = sensitive;
         this._sliderItem.setSensitive(sensitive && !!state);
         this._presetItems.forEach(item => item.setSensitive(sensitive && !!state));
+        const ripple = state?.ripple;
+        this._rippleItem.visible = !!ripple?.available;
+        this._rippleItem.setSensitive(sensitive && !!ripple && !!state.enabled);
+        this._rippleItem.setToggleState(!!ripple?.enabled);
 
         this._toggle.subtitle = subtitle;
         this._toggle.menu.setHeader('keyboard-brightness-symbolic', 'AlienFX LEDs', subtitle);
@@ -350,6 +367,14 @@ class AlienFixIndicator extends QuickSettings.SystemIndicator {
         return [c1, c2];
     }
 
+    _setRipple(on) {
+        const r = this._state?.ripple;
+        if (!r)
+            return;
+        this._call('SetRipple', on, toColor(r.color) ?? [255, 110, 0], r.speed ?? 10,
+            r.under === 'color' ? 'color' : 'effect', toColor(r.background) ?? [0, 0, 25]);
+    }
+
     _applyPreset(preset) {
         const [c1, c2] = this._currentColors();
         this._call('SetKeyboardEffect', preset.effect, preset.tempo, c1, c2);
@@ -394,6 +419,7 @@ class AlienFixIndicator extends QuickSettings.SystemIndicator {
         this._slider = null;
         this._sliderItem = null;
         this._presetItems = [];
+        this._rippleItem = null;
 
         super.destroy();
     }

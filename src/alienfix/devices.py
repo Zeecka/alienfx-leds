@@ -191,6 +191,12 @@ class Hardware:
     def wmi_zone_count():
         return wmi_zone_count()
 
+    @staticmethod
+    def keyboard_usb():
+        """vid:pid of the per-key lighting keyboard, which also types the keys."""
+        kb = find()["keyboard"]
+        return kb[1]["usb"] if kb else None
+
     # ---- per-key keyboard ---------------------------------------------------
     def keyboard_static(self, colors, brightness):
         self.kb.send([protocol.kb_custom_mode()])

@@ -32,6 +32,15 @@ gi.require_version("Adw", "1")
 gi.require_version("PangoCairo", "1.0")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango, PangoCairo  # noqa: E402
 
+# Shared with the daemon (evdev key names): next to the source tree, or where
+# install.sh puts it.
+for _lib in (Path(__file__).resolve().parent.parent / "src", Path("/usr/local/lib/alienfix")):
+    if (_lib / "alienfix" / "keycodes.py").is_file():
+        sys.path.insert(0, str(_lib))
+        break
+from alienfix.keycodes import load_evdev_names  # noqa: E402
+from alienfix.effects import RIPPLE_SPEED, RIPPLE_SPEEDS  # noqa: E402
+
 APP_ID = "io.github.zeecka.AlienFix"
 APP_NAME = "AlienFX LEDs"
 BUS_NAME = "io.github.zeecka.AlienFix"
@@ -55,88 +64,11 @@ EFFECT_LABELS = {
 }
 TWO_COLOUR_EFFECTS = {"wave", "mixpulse"}
 
-# ---------------------------------------------------------------------------
-# Keycodes: evdev code -> name (KEY_ prefix stripped)
-# ---------------------------------------------------------------------------
-INPUT_HEADER = "/usr/include/linux/input-event-codes.h"
-FALLBACK_EVDEV = {
-    "ESC": 1, "1": 2, "2": 3, "3": 4, "4": 5, "5": 6, "6": 7, "7": 8, "8": 9,
-    "9": 10, "0": 11, "MINUS": 12, "EQUAL": 13, "BACKSPACE": 14, "TAB": 15,
-    "Q": 16, "W": 17, "E": 18, "R": 19, "T": 20, "Y": 21, "U": 22, "I": 23,
-    "O": 24, "P": 25, "LEFTBRACE": 26, "RIGHTBRACE": 27, "ENTER": 28,
-    "LEFTCTRL": 29, "A": 30, "S": 31, "D": 32, "F": 33, "G": 34, "H": 35,
-    "J": 36, "K": 37, "L": 38, "SEMICOLON": 39, "APOSTROPHE": 40, "GRAVE": 41,
-    "LEFTSHIFT": 42, "BACKSLASH": 43, "Z": 44, "X": 45, "C": 46, "V": 47,
-    "B": 48, "N": 49, "M": 50, "COMMA": 51, "DOT": 52, "SLASH": 53,
-    "RIGHTSHIFT": 54, "LEFTALT": 56, "SPACE": 57, "CAPSLOCK": 58, "F1": 59,
-    "F2": 60, "F3": 61, "F4": 62, "F5": 63, "F6": 64, "F7": 65, "F8": 66,
-    "F9": 67, "F10": 68, "102ND": 86, "F11": 87, "F12": 88, "RIGHTCTRL": 97,
-    "RIGHTALT": 100, "HOME": 102, "UP": 103, "LEFT": 105, "RIGHT": 106,
-    "END": 107, "DOWN": 108, "DELETE": 111, "MUTE": 113, "VOLUMEDOWN": 114,
-    "VOLUMEUP": 115, "LEFTMETA": 125, "MICMUTE": 248,
-}
-
-
-def load_evdev_names(path=INPUT_HEADER):
-    """Return {evdev code: name} from the kernel header, or the fallback."""
-    names = {}
-    try:
-        text = Path(path).read_text()
-    except OSError:
-        text = ""
-    for m in re.finditer(r"^#define\s+KEY_(\w+)\s+(0x[0-9a-fA-F]+|\d+)\b", text, re.M):
-        names.setdefault(int(m.group(2), 0), m.group(1))
-    if not names:
-        names = {code: name for name, code in FALLBACK_EVDEV.items()}
-    return names
-
-
 def dmi_product():
     try:
         return Path("/sys/class/dmi/id/product_name").read_text().strip()
     except OSError:
         return ""
-
-
-# ---------------------------------------------------------------------------
-# Ripple — pure computation, unit-testable without a display
-# ---------------------------------------------------------------------------
-RIPPLE_SPEED = 10.0     # u / s
-RIPPLE_WIDTH = 1.3      # u, full width of the ring
-RIPPLE_LIFE = 0.9       # s
-RIPPLE_MAX = 32
-FRAME_MS = 33           # ~30 fps
-
-
-class Ripple:
-    __slots__ = ("u", "v", "t0", "color")
-
-    def __init__(self, u, v, t0, color):
-        self.u, self.v, self.t0, self.color = u, v, t0, tuple(color)
-
-
-def ripple_intensity(distance, age):
-    """0..1 contribution of a ring of given age (s) at distance (u)."""
-    if age < 0 or age >= RIPPLE_LIFE:
-        return 0.0
-    x = abs(distance - RIPPLE_SPEED * age) / (RIPPLE_WIDTH / 2)
-    if x >= 1:
-        return 0.0
-    return 0.5 * (1 + math.cos(math.pi * x)) * (1 - age / RIPPLE_LIFE)
-
-
-def ripple_frame(ripples, now, positions, background):
-    """(id, r, g, b) for every id: strongest ripple blended over background."""
-    frame = []
-    for kid in sorted(positions):
-        u, v = positions[kid]
-        best, colour = 0.0, background
-        for rp in ripples:
-            i = ripple_intensity(math.hypot(u - rp.u, v - rp.v), now - rp.t0)
-            if i > best:
-                best, colour = i, rp.color
-        frame.append((kid, *(int(round(b + (c - b) * best)) for b, c in zip(background, colour))))
-    return frame
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +281,7 @@ class Client:
 class KeyboardView(Gtk.DrawingArea):
     """The chassis keyboard, drawn to scale from its template.
 
-    mode "select": click/Ctrl-click selects keys; "preview": display only;
+    mode "select": click/Ctrl-click selects keys;
     "pick": a click calls on_pick(name) (used by the profile wizard).
     """
 
@@ -361,7 +293,6 @@ class KeyboardView(Gtk.DrawingArea):
         super().__init__(hexpand=True, vexpand=True)
         self.board, self.mode = board, mode
         self.colours = {}           # id -> (r, g, b)
-        self.override = None        # id -> (r, g, b), live preview
         self.cap_colours = {}       # key name -> (r, g, b), wizard marks
         self.selected = set()
         self.target = None          # key name to outline (wizard: last assigned)
@@ -374,10 +305,9 @@ class KeyboardView(Gtk.DrawingArea):
         self.set_draw_func(self._draw)
         self.set_has_tooltip(True)
         self.connect("query-tooltip", self._on_tooltip)
-        if mode != "preview":
-            click = Gtk.GestureClick()
-            click.connect("pressed", self._on_click)
-            self.add_controller(click)
+        click = Gtk.GestureClick()
+        click.connect("pressed", self._on_click)
+        self.add_controller(click)
 
     # --- public -------------------------------------------------------------
     def set_board(self, board):
@@ -387,10 +317,6 @@ class KeyboardView(Gtk.DrawingArea):
 
     def set_colours(self, colours):
         self.colours = colours
-        self.queue_draw()
-
-    def set_override(self, override):
-        self.override = override
         self.queue_draw()
 
     def set_cap_colours(self, colours):
@@ -460,10 +386,9 @@ class KeyboardView(Gtk.DrawingArea):
     def _colour_of(self, cap):
         if cap.name in self.cap_colours:
             return tuple(c / 255 for c in self.cap_colours[cap.name])
-        src = self.override if self.override is not None else self.colours
         for kid in cap.ids:
-            if kid in src:
-                return tuple(c / 255 for c in src[kid])
+            if kid in self.colours:
+                return tuple(c / 255 for c in self.colours[kid])
         return None
 
     def _outline(self, cr, cap, s, ox, oy):
@@ -891,163 +816,101 @@ class ChassisPage(Adw.PreferencesPage):
         self.syncing = False
 
 
-class RipplePage(Gtk.ScrolledWindow):
-    """Reactive typing ripple, driven by key presses in this window only."""
+class RipplePage(Adw.PreferencesPage):
+    """Typing ripple settings. The service draws the rings and saves the
+    settings, so the Quick Settings toggle and this page stay in step."""
 
-    PRIVACY = ("Only keys typed in this window are read, and only while it has the focus. "
-               "Nothing is recorded or sent anywhere but to the lighting.")
+    PRIVACY = ("While the ripple is on, the lighting service reads which keys of the built-in "
+               "keyboard are pressed, to start a ring there. Nothing else is done with them: "
+               "they are not recorded, logged or sent anywhere. External keyboards are not read.")
 
-    def __init__(self, win, board, evdev_names):
-        super().__init__(hscrollbar_policy=Gtk.PolicyType.NEVER)
-        self.win, self.board, self.evdev_names = win, board, evdev_names
-        self.key_ctrl = None
-        self.timer = 0
-        self.ripples, self.typed = [], []
-        self.live = self.begun = self.in_flight = self.idle_sent = False
-        self.frames_sent = self.frames_skipped = 0
+    def __init__(self, win):
+        super().__init__()
+        self.win = win
+        self.syncing = False
+        self.speed_timer = 0
 
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14,
-                      margin_top=18, margin_bottom=18, margin_start=18, margin_end=18)
-        self.set_child(box)
-        notice = Gtk.Box(spacing=12, css_classes=["card"])
-        notice.append(Gtk.Image(icon_name="security-high-symbolic", pixel_size=32,
-                                margin_start=14, margin_top=12, margin_bottom=12))
-        notice.append(Gtk.Label(label=self.PRIVACY, wrap=True, xalign=0, hexpand=True,
-                                margin_end=14, margin_top=12, margin_bottom=12))
-        box.append(notice)
+        notice = Adw.PreferencesGroup()
+        card = Gtk.Box(spacing=12, css_classes=["card"])
+        card.append(Gtk.Image(icon_name="security-high-symbolic", pixel_size=32,
+                              margin_start=14, margin_top=12, margin_bottom=12))
+        card.append(Gtk.Label(label=self.PRIVACY, wrap=True, xalign=0, hexpand=True,
+                              margin_end=14, margin_top=12, margin_bottom=12))
+        notice.add(card)
+        self.add(notice)
+
         group = Adw.PreferencesGroup()
+        self.add(group)
         self.switch = Adw.SwitchRow(title="Enable", subtitle="Off by default. Each key you type "
                                                              "sends a ripple across the keyboard.")
-        self.switch.connect("notify::active", lambda *_: self.refresh())
+        self.switch.connect("notify::active", self._send)
         group.add(self.switch)
         self.fg = colour_button((255, 110, 0))
+        self.fg.connect("notify::rgba", self._send)
         row = plain_row("Ripple colour")
         row.add_suffix(self.fg)
         group.add(row)
+        self.speed = Adw.SpinRow.new_with_range(*RIPPLE_SPEEDS, 1)
+        self.speed.set_title("Wave speed")
+        self.speed.set_subtitle("Keys per second (the ring always travels about 9 keys)")
+        self.speed.set_value(RIPPLE_SPEED)
+        self.speed.connect("notify::value", self._on_speed)
+        group.add(self.speed)
+        self.under = Adw.ComboRow(title="Under the ripple", model=Gtk.StringList.new(
+            ["Current effect", "Background colour"]))
+        self.under.connect("notify::selected", self._send)
+        group.add(self.under)
         self.bg = colour_button((0, 0, 25))
-        self.bg.connect("notify::rgba", lambda *_: setattr(self, "idle_sent", False))
-        row = plain_row("Background colour")
-        row.add_suffix(self.bg)
-        group.add(row)
-        self.status = plain_row("Status")
-        group.add(self.status)
-        box.append(group)
-        box.append(Gtk.Entry(placeholder_text="Type here to see the ripple…"))
-        self.typed_label = Gtk.Label(xalign=0, css_classes=["monospace", "dim-label"], label="Last keys: —")
-        box.append(self.typed_label)
-        self.preview = KeyboardView(board, mode="preview")
-        self.preview.set_content_height(260)
-        box.append(Gtk.Frame(child=self.preview, css_classes=["view"]))
-        win.connect("notify::is-active", lambda *_: self.refresh())
-        self.refresh()
+        self.bg.connect("notify::rgba", self._send)
+        self.bg_row = plain_row("Background colour")
+        self.bg_row.add_suffix(self.bg)
+        group.add(self.bg_row)
+        try_it = Adw.PreferencesGroup(title="Try it",
+                                      description="Any key of the built-in keyboard works, in any window.")
+        try_it.add(Gtk.Entry(placeholder_text="Type here…"))
+        self.add(try_it)
+        self._show_under()
 
-    def wanted(self):
-        return self.switch.get_active() and self.win.is_active() and self.win.client.available
+    def _show_under(self):
+        effect = self.under.get_selected() == 0
+        self.bg_row.set_visible(not effect)
+        self.under.set_subtitle(
+            "Keeps the colours or the effect set on the other pages. While the ripple is on, firmware "
+            "effects are redrawn by the service and may differ slightly from the real ones."
+            if effect else "One colour for every key while the ripple is on.")
 
-    def refresh(self):
-        if self.wanted() and not self.live:
-            self._start()
-        elif not self.wanted() and self.live:
-            self._stop()
-        if not self.switch.get_active():
-            text = "Off: no key is read."
-        elif not self.win.client.available:
-            text = "Waiting for the alienfixd service."
-        elif not self.win.is_active():
-            text = "Paused: the window does not have the focus (nothing is read)."
-        else:
-            text = f"On: reading this window only · {self.frames_sent} frames sent, {self.frames_skipped} skipped"
-        self.status.set_subtitle(text)
-
-    def _start(self):
-        self.live = True
-        self.key_ctrl = Gtk.EventControllerKey()
-        self.key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        self.key_ctrl.connect("key-pressed", self._on_key)
-        self.win.add_controller(self.key_ctrl)
-        self.idle_sent = False
-        self.frames_sent = self.frames_skipped = 0
-        self.timer = GLib.timeout_add(FRAME_MS, self._tick)
-        self.win.client.call("BeginLive", None, self._on_begun)
-
-    def _on_begun(self, _res, err):
-        if err is not None:
-            self.win.toast(describe_error(err))
-            self.switch.set_active(False)
+    def _on_speed(self, *_):
+        if self.syncing:
             return
-        if self.live:
-            self.begun = True
-        else:
-            self.win.client.call("EndLive")
+        if self.speed_timer:
+            GLib.source_remove(self.speed_timer)
+        self.speed_timer = GLib.timeout_add(250, self._speed_done)
 
-    def _stop(self):
-        self.live = False
-        if self.key_ctrl is not None:
-            self.win.remove_controller(self.key_ctrl)
-            self.key_ctrl = None
-        if self.timer:
-            GLib.source_remove(self.timer)
-            self.timer = 0
-        self.ripples.clear()
-        self.preview.set_override(None)
-        if self.begun:
-            self.begun = False
-            self.win.client.call("EndLive")
+    def _speed_done(self):
+        self.speed_timer = 0
+        self._send()
+        return GLib.SOURCE_REMOVE
 
-    def shutdown(self, on_done):
-        was_begun, self.begun = self.begun, False
-        self.switch.set_active(False)
-        if self.live:
-            self._stop()
-        if was_begun:
-            self.win.client.call("EndLive", None, lambda *_: on_done())
-        else:
-            on_done()
-
-    def daemon_gone(self):
-        self.begun = self.in_flight = False
-        self.refresh()
-
-    def _on_key(self, _ctrl, _keyval, keycode, _state):
-        if not (self.live and self.win.is_active()):
-            return False
-        name = self.evdev_names.get(keycode - 8, f"#{keycode - 8}")   # X11: keycode = evdev + 8
-        origin = self.board.origin(name)
-        if origin is not None:
-            self.ripples.append(Ripple(*origin, time.monotonic(), rgb_from_rgba(self.fg.get_rgba())))
-            del self.ripples[:-RIPPLE_MAX]
-        self.typed = (self.typed + [name])[-10:]
-        self.typed_label.set_label("Last keys: " + " ".join(self.typed))
-        return False
-
-    def _tick(self):
-        now = time.monotonic()
-        self.ripples = [r for r in self.ripples if now - r.t0 < RIPPLE_LIFE]
-        if not self.ripples and self.idle_sent:
-            return GLib.SOURCE_CONTINUE
-        frame = ripple_frame(self.ripples, now, self.board.positions, rgb_from_rgba(self.bg.get_rgba()))
-        self.preview.set_override({kid: (r, g, b) for kid, r, g, b in frame})
-        if not self.begun:
-            return GLib.SOURCE_CONTINUE
-        if self.in_flight:
-            self.frames_skipped += 1
-            return GLib.SOURCE_CONTINUE
-        self.in_flight = True
-        self.idle_sent = not self.ripples
-        self.win.client.call("LiveFrame", GLib.Variant("(a(yyyy))", (frame,)), self._on_frame_done)
-        self.frames_sent += 1
-        if self.frames_sent % 15 == 0:
-            self.refresh()
-        return GLib.SOURCE_CONTINUE
-
-    def _on_frame_done(self, _res, err):
-        self.in_flight = False
-        if err is not None and self.live:
-            self.win.toast(describe_error(err))
-            self.switch.set_active(False)
+    def _send(self, *_):
+        self._show_under()
+        if self.syncing:
+            return
+        self.win.call("SetRipple", GLib.Variant("(b(yyy)ys(yyy))", (
+            self.switch.get_active(), rgb_from_rgba(self.fg.get_rgba()), int(self.speed.get_value()),
+            "effect" if self.under.get_selected() == 0 else "color", rgb_from_rgba(self.bg.get_rgba()))))
 
     def update(self, state):
-        pass
+        rp = state.get("ripple")
+        if not rp or self.speed_timer:
+            return
+        self.syncing = True
+        self.switch.set_active(bool(rp.get("enabled")))
+        self.fg.set_rgba(rgba_from_rgb(rp.get("color", (255, 110, 0))))
+        self.speed.set_value(rp.get("speed", RIPPLE_SPEED))
+        self.under.set_selected(0 if rp.get("under", "effect") == "effect" else 1)
+        self.bg.set_rgba(rgba_from_rgb(rp.get("background", (0, 0, 25))))
+        self._show_under()
+        self.syncing = False
 
 
 SUPPORT_TEXT = {
@@ -1294,7 +1157,6 @@ class ProfileWizard(Adw.Window):
         self.assign, self.history = {}, []
         self.board = Board(self.template)
         self.view.set_board(self.board)
-        self.win.stop_ripple()
         self.stack.set_visible_child_name("blink")
         self.key_ctrl = Gtk.EventControllerKey()
         self.key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
@@ -1495,7 +1357,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.evdev_names = load_evdev_names()
         self.layout = None
         self.chassis_templates = {}
-        self.pages, self.ripple = [], None
+        self.pages = []
         self.last_state = None
         self.syncing = False
         self.brightness_timer = 0
@@ -1540,7 +1402,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.main.add_named(self.absent, "absent")
         self.main.add_named(self.stack, "content")
         toolbar.set_content(self.main)
-        self.connect("close-request", self._on_close)
         self._set_available(False, initial=True)
         self.connect_daemon()
 
@@ -1595,8 +1456,6 @@ class MainWindow(Adw.ApplicationWindow):
             self._load()
         else:
             self._set_available(False)
-            if self.ripple:
-                self.ripple.daemon_gone()
 
     def on_layout(self):
         self._load(rebuild=True)
@@ -1613,13 +1472,9 @@ class MainWindow(Adw.ApplicationWindow):
                 + f"{self.client.bus_label} bus, name {BUS_NAME}. "
                 "Check that the service is started (systemctl status alienfixd).")
             self.main.set_visible_child_name("absent")
-        if self.ripple:
-            self.ripple.refresh()
 
     def _build_pages(self, layout):
         current = self.stack.get_visible_child_name() if self.pages else self.start_page
-        if self.ripple:
-            self.ripple.shutdown(lambda: None)
         for page in self.pages:
             self.stack.remove(page)
         self.pages = []
@@ -1638,10 +1493,8 @@ class MainWindow(Adw.ApplicationWindow):
         specs.append(("effects", "Effects", "starred-symbolic", EffectsPage(self, layout)))
         if chassis_zones:
             specs.append(("chassis", "Chassis", "computer-symbolic", ChassisPage(self, chassis_zones)))
-        self.ripple = None
         if kb_type == "per-key" and board.all_ids():
-            self.ripple = RipplePage(self, board, self.evdev_names)
-            specs.append(("ripple", "Ripple", "weather-showers-symbolic", self.ripple))
+            specs.append(("ripple", "Ripple", "weather-showers-symbolic", RipplePage(self)))
         specs.append(("profile", "Machine", "computer-chip-symbolic", ProfilePage(self, layout)))
         for name, title, icon, page in specs:
             self.stack.add_titled_with_icon(page, name, title, icon)
@@ -1650,10 +1503,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.stack.set_visible_child_name(current if current in names else names[0])
         if self.last_state:
             self.apply_state(self.last_state)
-
-    def stop_ripple(self):
-        if self.ripple:
-            self.ripple.switch.set_active(False)
 
     def open_wizard(self):
         """Fetch the templates list and every template's geometry, then open the wizard."""
@@ -1705,15 +1554,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.brightness_timer = 0
         self.call("SetBrightness", GLib.Variant("(y)", (int(self.brightness.get_value()),)))
         return GLib.SOURCE_REMOVE
-
-    def _on_close(self, _win):
-        if self.ripple and self.ripple.begun:
-            app = self.get_application()
-            app.hold()
-            self.ripple.shutdown(app.release)
-        elif self.ripple:
-            self.ripple.shutdown(lambda: None)
-        return False
 
 
 class App(Adw.Application):

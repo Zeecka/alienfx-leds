@@ -72,3 +72,14 @@ def zone(name, zones):
 
 def percent(v):
     return _int(v, 0, 100, "brightness")
+
+
+def ripple(enabled, rgb, speed, under, background):
+    if not isinstance(enabled, bool):
+        raise Invalid("ripple: boolean expected")
+    if under not in effects.RIPPLE_UNDER:
+        raise Invalid("ripple: under must be effect or color")
+    return {"enabled": enabled, "color": list(color(*rgb)),
+            "speed": _int(speed, *effects.RIPPLE_SPEEDS, "ripple speed"),
+            "under": effects.RIPPLE_UNDER[effects.RIPPLE_UNDER.index(under)],
+            "background": list(color(*background))}

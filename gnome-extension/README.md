@@ -1,7 +1,8 @@
 # GNOME Shell extension "AlienFX LEDs"
 
 Adds a **Lighting** toggle to GNOME Quick Settings (GNOME 46): on/off,
-brightness, effect presets, and a shortcut to the AlienFX LEDs app. It talks
+brightness, effect presets, the typing ripple switch (per-key keyboards;
+its colour and speed are set in the app), and a shortcut to the AlienFX LEDs app. It talks
 to the `alienfixd` system service over D-Bus, asynchronously only.
 
 Install (done by `install.sh`): copy `alienfix@zeecka.github.io/` to
