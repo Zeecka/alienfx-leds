@@ -198,9 +198,12 @@ class Hardware:
         return kb[1]["usb"] if kb else None
 
     # ---- per-key keyboard ---------------------------------------------------
-    def keyboard_static(self, colors, brightness):
+    def _custom_mode(self):
         self.kb.send([protocol.kb_custom_mode()])
         time.sleep(protocol.MODE_SETTLE)
+
+    def keyboard_static(self, colors, brightness):
+        self._custom_mode()
         self.kb.send([*protocol.kb_colors(sorted(colors.items())), protocol.kb_brightness(brightness)],
                      pace=0.002)
 
@@ -211,14 +214,12 @@ class Hardware:
 
     def keyboard_frame(self, pairs, enter_custom=False):
         if enter_custom:
-            self.kb.send([protocol.kb_custom_mode()])
-            time.sleep(protocol.MODE_SETTLE)
+            self._custom_mode()
         self.kb.send(protocol.kb_colors(pairs))
 
     def keyboard_soft_start(self, brightness):
         """Enter per-key mode for a daemon-rendered effect, then set brightness."""
-        self.kb.send([protocol.kb_custom_mode()])
-        time.sleep(protocol.MODE_SETTLE)
+        self._custom_mode()
         self.kb.send([protocol.kb_brightness(brightness)])
 
     # ---- AW-ELC -------------------------------------------------------------

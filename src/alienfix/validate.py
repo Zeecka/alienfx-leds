@@ -48,7 +48,7 @@ def key_colors(entries, allowed_ids):
 
 def effect(name, tempo, c1, c2):
     if name not in EFFECTS:
-        raise Invalid(f"effect: unknown")
+        raise Invalid("effect: unknown")
     return {"name": EFFECTS[EFFECTS.index(name)],       # our constant, not the caller's string
             "tempo": _int(tempo, protocol.TEMPO_MIN, protocol.TEMPO_MAX, "tempo"),
             "c1": color(*c1), "c2": color(*c2)}

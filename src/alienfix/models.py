@@ -27,6 +27,7 @@ import json
 import re
 from pathlib import Path
 
+from .protocol import ZONE_EFFECTS
 from .validate import Invalid
 
 CONTROLLERS = ("elc", "legacy", "wmi")
@@ -92,7 +93,7 @@ def load(directory):
 def zone_effects(zone):
     """Effects a zone supports: the ELC runs pulse/morph itself; the others
     only hold a colour (software animation of them is not attempted)."""
-    return ("static", "pulse", "morph") if zone["controller"] == "elc" else ("static",)
+    return ZONE_EFFECTS if zone["controller"] == "elc" else ("static",)
 
 
 def generic(present, wmi_zones=0):
@@ -134,5 +135,5 @@ def public(m):
 
 def public_zones(m):
     return [{"id": z["id"], "label": z["label"], "group": z.get("group", "chassis"),
-             "verified": bool(z.get("verified")), "controller": z["controller"], "role": z.get("role"), "note": z.get("note", ""),
-             "effects": list(zone_effects(z))} for z in m["zones"]]
+             "verified": bool(z.get("verified")), "controller": z["controller"], "role": z.get("role"),
+             "note": z.get("note", ""), "effects": list(zone_effects(z))} for z in m["zones"]]

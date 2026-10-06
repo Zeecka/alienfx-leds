@@ -39,7 +39,7 @@ for _lib in (Path(__file__).resolve().parent.parent / "src", Path("/usr/local/li
         sys.path.insert(0, str(_lib))
         break
 from alienfix.keycodes import load_evdev_names  # noqa: E402
-from alienfix.effects import RIPPLE_SPEED, RIPPLE_SPEEDS  # noqa: E402
+from alienfix.effects import RIPPLE_SPEED, RIPPLE_SPEEDS, SOFTWARE  # noqa: E402
 
 APP_ID = "io.github.zeecka.AlienFix"
 APP_NAME = "AlienFX LEDs"
@@ -49,26 +49,33 @@ IFACE = "io.github.zeecka.AlienFix1"
 PAGES = ("keyboard", "effects", "chassis", "ripple", "profile")
 MAX_ID = 254
 
-EFFECT_LABELS = {
-    "static": "Static",
-    "breathing": "Breathing",
-    "wave": "Wave",
-    "pulse": "Pulse",
-    "mixpulse": "Two-colour pulse",
-    "nightrider": "Sweep",
-    "morph": "Colour morph",
-    "rainbow": "Rainbow wave",
-    "spectrum": "Spectrum cycle",
-    "starlight": "Starlight",
-    "gradient": "Gradient",
-}
-TWO_COLOUR_EFFECTS = {"wave", "mixpulse"}
+# Effect catalogue: (id, label, chassis action or None, colour pickers used).
+# The id is also the keyboard effect name; the daemon says which ones this
+# keyboard has, and each zone lists the actions it supports.
+EFFECTS = [
+    ("static", "Static colour", "static", 1),
+    ("pulse", "Pulse", "pulse", 1),
+    ("morph", "Colour morph (1 → 2)", "morph", 2),
+    ("breathing", "Breathing", None, 1),
+    ("wave", "Wave", None, 2),
+    ("mixpulse", "Two-colour pulse", None, 2),
+    ("nightrider", "Sweep", None, 1),
+    ("rainbow", "Rainbow wave", None, 0),
+    ("spectrum", "Spectrum cycle", None, 0),
+    ("starlight", "Starlight (stars on background)", None, 2),
+    ("gradient", "Gradient (left → right)", None, 2),
+]
+EFFECT_LABEL = {e: label for e, label, _z, _n in EFFECTS}
+EFFECT_ZONE = {e: zone for e, _l, zone, _n in EFFECTS}
+EFFECT_COLOURS = {e: n for e, _l, _z, n in EFFECTS}
 
-def dmi_product():
-    try:
-        return Path("/sys/class/dmi/id/product_name").read_text().strip()
-    except OSError:
-        return ""
+
+def key_ids(layout):
+    """{key name: [LED ids]} of a GetLayout reply."""
+    ids = {}
+    for kid, k in layout["keys"].items():
+        ids.setdefault(k["name"], []).append(int(kid))
+    return ids
 
 
 # ---------------------------------------------------------------------------
@@ -105,21 +112,10 @@ class Board:
 
     @classmethod
     def from_layout(cls, layout):
-        ids = {}
-        for kid, k in layout["keys"].items():
-            ids.setdefault(k["name"], []).append(int(kid))
-        return cls(layout["chassis"], ids)
-
-    @property
-    def positions(self):
-        return {i: (c.u, c.v) for c in self.caps.values() for i in c.ids}
+        return cls(layout["chassis"], key_ids(layout))
 
     def all_ids(self):
         return sorted(i for c in self.caps.values() for i in c.ids)
-
-    def origin(self, name):
-        c = self.caps.get(name)
-        return (c.u, c.v) if c else None
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +145,38 @@ def plain_row(title, subtitle=None, **kw):
     if subtitle is not None:
         row.set_subtitle(subtitle)
     return row
+
+
+def colour_row(title, rgb, on_change=None):
+    """-> (row, button): a row with a colour button at its end."""
+    button = colour_button(rgb)
+    if on_change:
+        button.connect("notify::rgba", on_change)
+    row = plain_row(title)
+    row.add_suffix(button)
+    row.set_activatable_widget(button)
+    return row, button
+
+
+class Debounce:
+    """Call fn once, ms after the last trigger (sliders, spin buttons)."""
+
+    def __init__(self, ms, fn):
+        self.ms, self.fn, self.source = ms, fn, 0
+
+    @property
+    def pending(self):
+        return bool(self.source)
+
+    def trigger(self, *_):
+        if self.source:
+            GLib.source_remove(self.source)
+        self.source = GLib.timeout_add(self.ms, self._fire)
+
+    def _fire(self):
+        self.source = 0
+        self.fn()
+        return GLib.SOURCE_REMOVE
 
 
 def rounded_rect(cr, x, y, w, h, r):
@@ -545,37 +573,12 @@ class KeyboardPage(Gtk.Box):
             text = "Static mode: per-key colours."
         else:
             self.view.set_colours({})
-            name = EFFECT_LABELS.get(kb.get("effect", {}).get("name"), "?")
+            name = EFFECT_LABEL.get(kb.get("effect", {}).get("name"), "?")
             text = (f"Effect running ({name}). Per-key colours are kept by the service; "
                     "applying a colour switches back to static mode.")
         if not state.get("enabled", True):
             text += " Lighting is off."
         self.info.set_label(text)
-
-
-# Effect catalogue: how each effect is realised on each kind of target.
-#   kb: keyboard effect name (None = not available on the keyboard)
-#   zone: chassis action name (None = not available on chassis zones)
-#   colours: how many colour pickers are used
-EFFECTS = [
-    ("static", "Static colour", {"kb": "static", "zone": "static", "colours": 1}),
-    ("pulse", "Pulse", {"kb": "pulse", "zone": "pulse", "colours": 1}),
-    ("morph", "Colour morph (1 → 2)", {"kb": "morph", "zone": "morph", "colours": 2}),
-    ("breathing", "Breathing", {"kb": "breathing", "zone": None, "colours": 1}),
-    ("wave", "Wave", {"kb": "wave", "zone": None, "colours": 2}),
-    ("mixpulse", "Two-colour pulse", {"kb": "mixpulse", "zone": None, "colours": 2}),
-    ("nightrider", "Sweep", {"kb": "nightrider", "zone": None, "colours": 1}),
-    ("rainbow", "Rainbow wave", {"kb": "rainbow", "zone": None, "colours": 0}),
-    ("spectrum", "Spectrum cycle", {"kb": "spectrum", "zone": None, "colours": 0}),
-    ("starlight", "Starlight (stars on background)", {"kb": "starlight", "zone": None, "colours": 2}),
-    ("gradient", "Gradient (left → right)", {"kb": "gradient", "zone": None, "colours": 2}),
-]
-SOFTWARE_KB = {"morph", "rainbow", "spectrum", "starlight", "gradient"}
-
-
-def short_label(label):
-    """"Rear LEDs A (top left, bottom right)" -> "Rear LEDs A" for the check boxes."""
-    return label.split(" (")[0]
 
 
 class EffectsPage(Adw.PreferencesPage):
@@ -588,9 +591,10 @@ class EffectsPage(Adw.PreferencesPage):
         self.kb_type = layout.get("model", {}).get("keyboard", "per-key")
         self.zones = {z["id"]: z for z in layout.get("zones", []) if z.get("group", "chassis") == "chassis"}
         self.targets_spec = ([("keyboard", "Keyboard")] if self.kb_type != "none" else []) + \
-            [(zid, short_label(z["label"])) for zid, z in self.zones.items()]
+            [(zid, z["label"].split(" (")[0]) for zid, z in self.zones.items()]   # "Rear LEDs A (…)" -> "Rear LEDs A"
         self.syncing = False
         self.last_effect = None
+        self.entries = []
 
         tgroup = Adw.PreferencesGroup(title="Apply to",
                                       description="Pick one or several lighting groups; the list of "
@@ -598,18 +602,15 @@ class EffectsPage(Adw.PreferencesPage):
         self.add(tgroup)
         self.checks = {}
         row = plain_row("")
-        box = Gtk.Box(spacing=18, valign=Gtk.Align.CENTER, margin_top=6, margin_bottom=6)
+        flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=6, valign=Gtk.Align.CENTER,
+                           column_spacing=18, row_spacing=4, hexpand=True, margin_top=6, margin_bottom=6)
         first = self.targets_spec[0][0] if self.targets_spec else None
-        box.set_homogeneous(False)
-        flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=6,
-                           column_spacing=18, row_spacing=4, hexpand=True)
-        box.append(flow)
         for tid, label in self.targets_spec:
             cb = Gtk.CheckButton(label=label, active=tid == first)
             cb.connect("toggled", self._on_targets)
             self.checks[tid] = cb
             flow.append(cb)
-        row.add_prefix(box)
+        row.add_prefix(flow)
         tgroup.add(row)
         shortcuts = Gtk.Box(spacing=8, margin_top=8)
         every = Gtk.Button(label="Everything")
@@ -632,24 +633,17 @@ class EffectsPage(Adw.PreferencesPage):
         self.tempo.set_subtitle("1 to 30: higher is slower (wave loops in ≈ 0.6 s × tempo)")
         self.tempo.set_value(7)
         group.add(self.tempo)
-        self.c1 = colour_button((255, 0, 0))
-        self.row1 = plain_row("Colour 1")
-        self.row1.add_suffix(self.c1)
-        self.row1.set_activatable_widget(self.c1)
+        self.row1, self.c1 = colour_row("Colour 1", (255, 0, 0))
         group.add(self.row1)
-        self.c2 = colour_button((0, 0, 255))
-        self.row2 = plain_row("Colour 2")
-        self.row2.add_suffix(self.c2)
-        self.row2.set_activatable_widget(self.c2)
+        self.row2, self.c2 = colour_row("Colour 2", (0, 0, 255))
         group.add(self.row2)
         self.how = plain_row("How it runs")
         self.how.set_subtitle_lines(4)
         group.add(self.how)
-        apply = Gtk.Button(label="Apply", halign=Gtk.Align.CENTER, margin_top=18,
-                           css_classes=["suggested-action", "pill"])
-        apply.connect("clicked", self._apply)
-        group.add(apply)
-        self.apply_btn = apply
+        self.apply_btn = Gtk.Button(label="Apply", halign=Gtk.Align.CENTER, margin_top=18,
+                                    css_classes=["suggested-action", "pill"])
+        self.apply_btn.connect("clicked", self._apply)
+        group.add(self.apply_btn)
         self._on_targets()
 
     # --- targets / catalogue ------------------------------------------------------
@@ -667,28 +661,25 @@ class EffectsPage(Adw.PreferencesPage):
         if self.syncing:
             return
         chosen = self.targets()
-        previous = self._effect_id() if hasattr(self, "entries") and self.entries else None
+        previous = self._effect_id()
         kb = "keyboard" in chosen
         zone_fx = [set(self.zones[t].get("effects", ["static"])) for t in chosen if t != "keyboard"]
-        self.entries = [(eid, label, spec) for eid, label, spec in EFFECTS
-                        if (not kb or (spec["kb"] in self.available))
-                        and all(spec["zone"] in fx for fx in zone_fx)]
-        self.combo.set_model(Gtk.StringList.new([label for _e, label, _s in self.entries]))
-        ids = [e for e, _l, _s in self.entries]
-        self.combo.set_selected(ids.index(previous) if previous in ids else 0)
+        self.entries = [e for e, _l, zone, _n in EFFECTS
+                        if (not kb or e in self.available) and all(zone in fx for fx in zone_fx)]
+        self.combo.set_model(Gtk.StringList.new([EFFECT_LABEL[e] for e in self.entries]))
+        self.combo.set_selected(self.entries.index(previous) if previous in self.entries else 0)
         self.apply_btn.set_sensitive(bool(chosen))
         self._on_effect()
 
     def _effect_id(self):
         i = self.combo.get_selected()
-        return self.entries[i][0] if 0 <= i < len(self.entries) else None
+        return self.entries[i] if 0 <= i < len(self.entries) else None
 
     def _on_effect(self, *_):
         eid = self._effect_id()
         if eid is None:
             return
-        spec = dict((e, s) for e, _l, s in EFFECTS)[eid]
-        n = spec["colours"]
+        n = EFFECT_COLOURS[eid]
         self.row1.set_visible(n >= 1)
         self.row2.set_visible(n >= 2)
         self.row1.set_title("Star colour" if eid == "starlight" else "Colour 1")
@@ -700,7 +691,7 @@ class EffectsPage(Adw.PreferencesPage):
             if t == "keyboard" and self.kb_type == "zones":
                 how = "keyboard zones, run by the lighting controller"
             elif t == "keyboard":
-                how = ("software animation rendered by the service" if spec["kb"] in SOFTWARE_KB
+                how = ("software animation rendered by the service" if eid in SOFTWARE
                        else "keyboard firmware effect")
                 if eid == "static":
                     how = "whole keyboard, one colour"
@@ -720,7 +711,6 @@ class EffectsPage(Adw.PreferencesPage):
         eid = self._effect_id()
         if eid is None:
             return
-        spec = dict((e, s) for e, _l, s in EFFECTS)[eid]
         tempo = int(self.tempo.get_value())
         c1, c2 = rgb_from_rgba(self.c1.get_rgba()), rgb_from_rgba(self.c2.get_rgba())
         for t in self.targets():
@@ -728,20 +718,18 @@ class EffectsPage(Adw.PreferencesPage):
                 if eid == "static":
                     self.win.call("SetKeyboardColor", GLib.Variant("(yyy)", c1))
                 else:
-                    self.win.call("SetKeyboardEffect",
-                                  GLib.Variant("(sy(yyy)(yyy))", (spec["kb"], tempo, c1, c2)))
+                    self.win.call("SetKeyboardEffect", GLib.Variant("(sy(yyy)(yyy))", (eid, tempo, c1, c2)))
             else:
                 self.win.call("SetZoneEffect",
-                              GLib.Variant("(ssy(yyy)(yyy))", (t, spec["zone"], tempo, c1, c2)))
+                              GLib.Variant("(ssy(yyy)(yyy))", (t, EFFECT_ZONE[eid], tempo, c1, c2)))
 
     def update(self, state):
         eff = state.get("keyboard", {}).get("effect")
         if not eff or eff == self.last_effect or self.targets() != ["keyboard"]:
             return
         self.last_effect = eff
-        ids = [e for e, _l, _s in self.entries]
-        if state.get("keyboard", {}).get("mode") == "effect" and eff.get("name") in ids:
-            self.combo.set_selected(ids.index(eff["name"]))
+        if state.get("keyboard", {}).get("mode") == "effect" and eff.get("name") in self.entries:
+            self.combo.set_selected(self.entries.index(eff["name"]))
         self.tempo.set_value(eff.get("tempo", 7))
         self.c1.set_rgba(rgba_from_rgb(eff.get("c1", (255, 0, 0))))
         self.c2.set_rgba(rgba_from_rgb(eff.get("c2", (0, 0, 255))))
@@ -828,7 +816,7 @@ class RipplePage(Adw.PreferencesPage):
         super().__init__()
         self.win = win
         self.syncing = False
-        self.speed_timer = 0
+        self.speed_debounce = Debounce(250, self._send)
 
         notice = Adw.PreferencesGroup()
         card = Gtk.Box(spacing=12, css_classes=["card"])
@@ -845,25 +833,19 @@ class RipplePage(Adw.PreferencesPage):
                                                              "sends a ripple across the keyboard.")
         self.switch.connect("notify::active", self._send)
         group.add(self.switch)
-        self.fg = colour_button((255, 110, 0))
-        self.fg.connect("notify::rgba", self._send)
-        row = plain_row("Ripple colour")
-        row.add_suffix(self.fg)
+        row, self.fg = colour_row("Ripple colour", (255, 110, 0), self._send)
         group.add(row)
         self.speed = Adw.SpinRow.new_with_range(*RIPPLE_SPEEDS, 1)
         self.speed.set_title("Wave speed")
         self.speed.set_subtitle("Keys per second (the ring always travels about 9 keys)")
         self.speed.set_value(RIPPLE_SPEED)
-        self.speed.connect("notify::value", self._on_speed)
+        self.speed.connect("notify::value", lambda *_: self.syncing or self.speed_debounce.trigger())
         group.add(self.speed)
         self.under = Adw.ComboRow(title="Under the ripple", model=Gtk.StringList.new(
             ["Current effect", "Background colour"]))
         self.under.connect("notify::selected", self._send)
         group.add(self.under)
-        self.bg = colour_button((0, 0, 25))
-        self.bg.connect("notify::rgba", self._send)
-        self.bg_row = plain_row("Background colour")
-        self.bg_row.add_suffix(self.bg)
+        self.bg_row, self.bg = colour_row("Background colour", (0, 0, 25), self._send)
         group.add(self.bg_row)
         try_it = Adw.PreferencesGroup(title="Try it",
                                       description="Any key of the built-in keyboard works, in any window.")
@@ -875,21 +857,7 @@ class RipplePage(Adw.PreferencesPage):
         effect = self.under.get_selected() == 0
         self.bg_row.set_visible(not effect)
         self.under.set_subtitle(
-            "Keeps the colours or the effect set on the other pages. While the ripple is on, firmware "
-            "effects are redrawn by the service and may differ slightly from the real ones."
-            if effect else "One colour for every key while the ripple is on.")
-
-    def _on_speed(self, *_):
-        if self.syncing:
-            return
-        if self.speed_timer:
-            GLib.source_remove(self.speed_timer)
-        self.speed_timer = GLib.timeout_add(250, self._speed_done)
-
-    def _speed_done(self):
-        self.speed_timer = 0
-        self._send()
-        return GLib.SOURCE_REMOVE
+            "Firmware effects are redrawn, so may differ slightly" if effect else "One colour for every key")
 
     def _send(self, *_):
         self._show_under()
@@ -901,7 +869,7 @@ class RipplePage(Adw.PreferencesPage):
 
     def update(self, state):
         rp = state.get("ripple")
-        if not rp or self.speed_timer:
+        if not rp or self.speed_debounce.pending:
             return
         self.syncing = True
         self.switch.set_active(bool(rp.get("enabled")))
@@ -930,7 +898,8 @@ class ProfilePage(Adw.PreferencesPage):
         model = layout.get("model", {})
         group = Adw.PreferencesGroup(title="This machine")
         self.add(group)
-        group.add(plain_row("Detected product name", subtitle=dmi_product() or "unknown"))
+        self.product_row = plain_row("Detected product name", subtitle="…")
+        group.add(self.product_row)
         row = plain_row("Model", subtitle=f"{model.get('name', '?')} · {SUPPORT_TEXT.get(model.get('support'), '')}")
         row.set_subtitle_lines(3)
         group.add(row)
@@ -942,7 +911,6 @@ class ProfilePage(Adw.PreferencesPage):
                                         subtitle="Automatic uses the product name, then the USB id")
         self.model_ids = [""]
         self.model_combo.set_model(Gtk.StringList.new(["Automatic"]))
-        self.model_handler = 0
         group.add(self.model_combo)
         win.call("ListChassis", None, self._got_models)
 
@@ -953,6 +921,7 @@ class ProfilePage(Adw.PreferencesPage):
         if err is not None:
             return
         info = json.loads(res[0])
+        self.product_row.set_subtitle(info.get("dmi_product") or "unknown")
         ms = sorted(info.get("models", []), key=lambda m: (m["support"] != "verified", m["name"].lower()))
         self.model_ids = [""] + [m["id"] for m in ms]
         labels = ["Automatic"] + [m["name"] + ("" if m["support"] == "verified" else " (community)")
@@ -960,7 +929,7 @@ class ProfilePage(Adw.PreferencesPage):
         self.model_combo.set_model(Gtk.StringList.new(labels))
         current = info.get("model") if info.get("model_forced") else ""
         self.model_combo.set_selected(self.model_ids.index(current) if current in self.model_ids else 0)
-        self.model_handler = self.model_combo.connect("notify::selected", self._on_model)
+        self.model_combo.connect("notify::selected", self._on_model)
 
     def _on_model(self, *_):
         i = self.model_combo.get_selected()
@@ -1012,12 +981,9 @@ class ProfilePage(Adw.PreferencesPage):
             manage.add(reset)
 
     def _profile_json(self):
-        keys = {}
-        for kid, k in self.layout["keys"].items():
-            keys.setdefault(k["name"], []).append(int(kid))
         prof = self.layout.get("profile", {})
         return json.dumps({"version": 1, "name": prof.get("name", "Profile"), "chassis": prof.get("chassis"),
-                           "method": prof.get("method", "blink"), "keys": keys}, indent=1)
+                           "method": prof.get("method", "blink"), "keys": key_ids(self.layout)}, indent=1)
 
     def _export(self, *_):
         dialog = Gtk.FileDialog(initial_name="alienfx-profile.json")
@@ -1094,7 +1060,7 @@ class ProfileWizard(Adw.Window):
         page.add(intro)
         group = Adw.PreferencesGroup(title="Your machine")
         page.add(group)
-        product = self.info.get("dmi_product") or dmi_product() or "unknown"
+        product = self.info.get("dmi_product") or "unknown"
         group.add(plain_row("Detected model", subtitle=product))
         tids = list(self.templates)
         self.tpl_combo = Adw.ComboRow(title="Keyboard (chassis template)", model=Gtk.StringList.new(
@@ -1129,7 +1095,7 @@ class ProfileWizard(Adw.Window):
         self.progress = Gtk.ProgressBar(show_text=True)
         box.append(self.progress)
         self.view = KeyboardView(Board({"width": 1, "height": 1, "keys": []}), mode="pick")
-        self.view.on_pick = self._picked
+        self.view.on_pick = self._answer
         box.append(Gtk.Frame(child=self.view, css_classes=["view"]))
         self.last_label = Gtk.Label(xalign=0, css_classes=["monospace", "dim-label"])
         box.append(self.last_label)
@@ -1220,9 +1186,6 @@ class ProfileWizard(Adw.Window):
         self.pos += 1
         self.blink_on = False
         self._show_current()
-
-    def _picked(self, name):
-        self._answer(name)
 
     def _on_key(self, _ctrl, _keyval, keycode, _state):
         if self.stack.get_visible_child_name() != "blink":
@@ -1360,7 +1323,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.pages = []
         self.last_state = None
         self.syncing = False
-        self.brightness_timer = 0
+        self.brightness_debounce = Debounce(150, lambda: self.call(
+            "SetBrightness", GLib.Variant("(y)", (int(self.brightness.get_value()),))))
 
         self.toasts = Adw.ToastOverlay()
         toolbar = Adw.ToolbarView()
@@ -1382,7 +1346,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.brightness.set_draw_value(True)
         self.brightness.set_value_pos(Gtk.PositionType.RIGHT)
         self.brightness.set_tooltip_text("Brightness (0 to 100 %)")
-        self.brightness.connect("value-changed", self._on_brightness)
+        self.brightness.connect("value-changed", lambda *_: self.syncing or self.brightness_debounce.trigger())
         bright.append(self.brightness)
         header.pack_end(bright)
         self.general_widgets = (general, bright)
@@ -1533,7 +1497,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.last_state = state
         self.syncing = True
         self.enabled.set_active(bool(state.get("enabled", True)))
-        if not self.brightness_timer:
+        if not self.brightness_debounce.pending:
             self.brightness.set_value(state.get("brightness", 100))
         for page in self.pages:
             page.update(state)
@@ -1543,17 +1507,6 @@ class MainWindow(Adw.ApplicationWindow):
         if not self.syncing:
             self.call("SetEnabled", GLib.Variant("(b)", (switch.get_active(),)))
 
-    def _on_brightness(self, _scale):
-        if self.syncing:
-            return
-        if self.brightness_timer:
-            GLib.source_remove(self.brightness_timer)
-        self.brightness_timer = GLib.timeout_add(150, self._send_brightness)
-
-    def _send_brightness(self):
-        self.brightness_timer = 0
-        self.call("SetBrightness", GLib.Variant("(y)", (int(self.brightness.get_value()),)))
-        return GLib.SOURCE_REMOVE
 
 
 class App(Adw.Application):

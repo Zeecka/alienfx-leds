@@ -16,12 +16,11 @@ import json
 import re
 from pathlib import Path
 
+from .validate import Invalid       # one error type for the daemon
+
 MAX_ID = 254                   # ids go on the wire as id+1 in one byte
 MAX_PROFILE_BYTES = 32768
 NAME_RE = re.compile(r"^[\w .,()'+\-—]{1,60}$", re.UNICODE)
-
-
-from .validate import Invalid  # noqa: E402  (one error type for the daemon)
 
 
 def load_templates(directory):

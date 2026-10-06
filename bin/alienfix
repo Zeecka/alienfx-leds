@@ -41,6 +41,30 @@ def call(method, sig=None, *args):
     return r.unpack() if r else ()
 
 
+def layout():
+    return json.loads(call("GetLayout")[0])
+
+
+def ids_by_key(lay):
+    by = {}
+    for kid, k in lay["keys"].items():
+        by.setdefault(k["name"], []).append(int(kid))
+    return by
+
+
+def tempo_colours(args, tempo, c1, c2):
+    """[--tempo N] [#c1] [#c2] in any order -> (tempo, c1, c2)."""
+    cols, i = [], 0
+    while i < len(args):
+        if args[i] == "--tempo":
+            tempo, i = int(args[i + 1]), i + 2
+        else:
+            cols.append(rgb(args[i]))
+            i += 1
+    cols += [c1, c2][len(cols):]
+    return tempo, cols[0], cols[1]
+
+
 def main(argv):
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__.strip())
@@ -49,16 +73,13 @@ def main(argv):
     if cmd == "status":
         print(json.dumps(json.loads(call("GetState")[0]), indent=1))
     elif cmd == "layout":
-        lay = json.loads(call("GetLayout")[0])
+        lay = layout()
         for kid, k in sorted(lay["keys"].items(), key=lambda kv: (kv[1]["row"], kv[1]["u"])):
             print(f"{kid:>4}  {k['name']:<11} {k['legend']}")
     elif cmd == "color":
         call("SetKeyboardColor", "(yyy)", *rgb(rest[0]))
     elif cmd == "keys":
-        lay = json.loads(call("GetLayout")[0])
-        by = {}
-        for kid, k in lay["keys"].items():
-            by.setdefault(k["name"], []).append(int(kid))
+        by = ids_by_key(layout())
         entries = []
         for a in rest:
             name, col = a.split("=")
@@ -67,19 +88,12 @@ def main(argv):
             entries += [(i, *rgb(col)) for i in by[name.upper()]]
         call("SetKeys", "(a(yyyy))", entries)
     elif cmd == "effect":
-        tempo, cols, i = 5, [], 1
-        while i < len(rest):
-            if rest[i] == "--tempo":
-                tempo, i = int(rest[i + 1]), i + 2
-            else:
-                cols.append(rgb(rest[i])); i += 1
-        c1 = cols[0] if cols else (0, 90, 255)
-        c2 = cols[1] if len(cols) > 1 else (255, 0, 160)
-        call("SetKeyboardEffect", "(sy(yyy)(yyy))", rest[0], tempo, c1, c2)
+        call("SetKeyboardEffect", "(sy(yyy)(yyy))", rest[0],
+             *tempo_colours(rest[1:], 5, (0, 90, 255), (255, 0, 160)))
     elif cmd == "brightness":
         call("SetBrightness", "(y)", int(rest[0]))
     elif cmd == "zones":
-        lay = json.loads(call("GetLayout")[0])
+        lay = layout()
         print(f"model: {lay['model']['name']} ({lay['model']['support']})")
         for z in lay["zones"]:
             print(f"  {z['id']:<8} {z['label']:<40} {'/'.join(z['effects']):<20} "
@@ -87,15 +101,8 @@ def main(argv):
     elif cmd == "zone" and len(rest) >= 2 and rest[1].startswith("#"):
         call("SetZoneColor", "(syyy)", rest[0], *rgb(rest[1]))
     elif cmd == "zone":
-        tempo, cols, i = 6, [], 2
-        while i < len(rest):
-            if rest[i] == "--tempo":
-                tempo, i = int(rest[i + 1]), i + 2
-            else:
-                cols.append(rgb(rest[i])); i += 1
-        c1 = cols[0] if cols else (0, 90, 255)
-        c2 = cols[1] if len(cols) > 1 else (0, 0, 0)
-        call("SetZoneEffect", "(ssy(yyy)(yyy))", rest[0], rest[1], tempo, c1, c2)
+        call("SetZoneEffect", "(ssy(yyy)(yyy))", rest[0], rest[1],
+             *tempo_colours(rest[2:], 6, (0, 90, 255), (0, 0, 0)))
     elif cmd == "models":
         info = json.loads(call("ListChassis")[0])
         print(f"product name: {info['dmi_product'] or '?'}   controllers: "

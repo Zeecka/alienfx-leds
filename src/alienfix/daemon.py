@@ -44,6 +44,12 @@ ZONE_KB_EFFECT = {"static": "static", "pulse": "pulse", "breathing": "pulse",
 log = logging.getLogger("alienfixd")
 
 
+def write_atomic(path, text):
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(text)
+    os.replace(tmp, path)
+
+
 class Worker(threading.Thread):
     """Applies the latest wanted state for one controller; coalesces requests."""
 
@@ -91,6 +97,7 @@ class Daemon:
         self.lock = threading.Lock()
         self.live_owner = None
         self.live_watch = 0
+        self.live_frames, self.live_t0 = 0, 0.0
         self.auth_cache = {}
         self.kb_worker = Worker("keyboard", self._apply_keyboard)
         self.soft_on = False          # keyboard already in per-key mode for a software effect
@@ -178,7 +185,7 @@ class Daemon:
             soft = self._soft(d)
         if "frame" in job and live:
             self.hw.keyboard_frame(sorted(job["frame"].items()), enter_custom=job.get("enter", False))
-            self._count_frame()
+            self.live_frames += 1
             return
         if live:
             self.soft_on = False
@@ -310,10 +317,6 @@ class Daemon:
             with self.lock:
                 self.ripples.clear()
 
-    def _count_frame(self):
-        """Count live frames that actually reached the hardware."""
-        self._live_frames = getattr(self, "_live_frames", 0) + 1
-
     def apply_all(self):
         self.kb_worker.request(full=True)
         self.elc_worker.request(zones=True, power=True)
@@ -393,7 +396,7 @@ class Daemon:
     def _changed(self, keyboard=False, zones=False, power=False):
         with self.lock:
             self.state.save()
-            js = self.state.public(self.live_owner is not None, self.hw.presence(), self.kb_type == "per-key")
+            js = self._public_state()
         if keyboard:
             self.kb_worker.request(full=True)
             self._sync_keys()
@@ -401,12 +404,15 @@ class Daemon:
             self.elc_worker.request(zones=zones, power=power)
         self.conn.emit_signal(None, PATH, IFACE, "StateChanged", GLib.Variant("(s)", (js,)))
 
+    def _public_state(self):
+        """Caller holds the lock."""
+        return self.state.public(self.live_owner is not None, self.hw.presence(), self.kb_type == "per-key")
+
     # ---- methods ---------------------------------------------------------
 
     def m_GetState(self, _s):
         with self.lock:
-            js = self.state.public(self.live_owner is not None, self.hw.presence(), self.kb_type == "per-key")
-            return GLib.Variant("(s)", (js,))
+            return GLib.Variant("(s)", (self._public_state(),))
 
     def _keyboard_effects(self):
         if self.kb_type == "per-key":
@@ -420,7 +426,6 @@ class Daemon:
     def m_GetLayout(self, _s):
         pub = {**self.layout, "model": models.public(self.model), "model_forced": self.model_forced,
                "zones": models.public_zones(self.model), "effects": self._keyboard_effects(),
-               "hardware_effects": list(protocol.EFFECTS), "software_effects": list(effects.SOFTWARE),
                "zone_effects": list(validate.ZONE_EFFECTS), "custom": self.custom}
         return GLib.Variant("(s)", (json.dumps(pub, ensure_ascii=False),))
 
@@ -440,14 +445,9 @@ class Daemon:
         if model_id and model_id not in self.models:
             raise validate.Invalid("model: unknown")
         if model_id:
-            tmp = self.model_path.with_suffix(".tmp")
-            tmp.write_text(self.models[model_id]["id"])        # our string, not the caller's
-            os.replace(tmp, self.model_path)
+            write_atomic(self.model_path, self.models[model_id]["id"])     # our string, not the caller's
         else:
-            try:
-                self.model_path.unlink()
-            except FileNotFoundError:
-                pass
+            self.model_path.unlink(missing_ok=True)
         with self.lock:
             self._load_model()
             self._load_profile()
@@ -464,18 +464,13 @@ class Daemon:
     def m_SaveProfile(self, _s, text):
         self._need_per_key()
         prof = profile.parse(text, self.templates)
-        tmp = self.profile_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(prof, indent=1))
-        os.replace(tmp, self.profile_path)
+        write_atomic(self.profile_path, json.dumps(prof, indent=1))
         with self.lock:
             self._load_profile()
         self._layout_changed()
 
     def m_ResetProfile(self, _s):
-        try:
-            self.profile_path.unlink()
-        except FileNotFoundError:
-            pass
+        self.profile_path.unlink(missing_ok=True)
         with self.lock:
             self._load_profile()
         self._layout_changed()
@@ -562,7 +557,7 @@ class Daemon:
             if self.live_owner not in (None, sender):
                 raise validate.Invalid("live mode is held by another client")
             self.live_owner = sender
-        self._live_frames, self._live_t0 = 0, time.monotonic()
+        self.live_frames, self.live_t0 = 0, time.monotonic()
         if not self.live_watch:
             self.live_watch = Gio.bus_watch_name_on_connection(
                 self.conn, sender, Gio.BusNameWatcherFlags.NONE, None, lambda *_: self._end_live())
@@ -582,8 +577,7 @@ class Daemon:
         return None
 
     def _end_live(self):
-        dt = time.monotonic() - getattr(self, "_live_t0", time.monotonic())
-        n = getattr(self, "_live_frames", 0)
+        dt, n = time.monotonic() - self.live_t0, self.live_frames
         if dt > 0.5:
             log.info("live session: %d frames written to the keyboard in %.1f s (%.1f/s)", n, dt, n / dt)
         with self.lock:

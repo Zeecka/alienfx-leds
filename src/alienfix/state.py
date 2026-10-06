@@ -86,7 +86,7 @@ class State:
         return {i: tuple(kb["keys"].get(str(i), kb["base"])) for i in self.key_ids}
 
     def save(self):
-        tmp = self.path.with_suffix(".tmp")
+        tmp = self.path.with_suffix(".tmp")       # atomic: a crash never leaves half a file
         tmp.write_text(json.dumps(self.data, indent=1))
         os.replace(tmp, self.path)
 
