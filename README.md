@@ -5,9 +5,9 @@
 # AlienFX LEDs
 
 **Keyboard and chassis lighting for Alienware and Dell machines on Linux.**<br>
-Per-key colours, effects, a typing ripple, and a toggle in GNOME Quick Settings, all driven by a small, locked-down service.
+Per-key colors, effects, a typing ripple, and a toggle in GNOME Quick Settings, all driven by a small, locked-down service.
 
-[![Licence: GPL-3.0-or-later](https://img.shields.io/badge/licence-GPL--3.0--or--later-blue?style=flat-square)](LICENSE)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 ![Linux](https://img.shields.io/badge/platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)
 ![Python 3](https://img.shields.io/badge/python-3-3776AB?style=flat-square&logo=python&logoColor=white)
 ![GTK 4 + libadwaita](https://img.shields.io/badge/GTK%204-libadwaita-4A86CF?style=flat-square&logo=gnome&logoColor=white)
@@ -23,7 +23,7 @@ Per-key colours, effects, a typing ripple, and a toggle in GNOME Quick Settings,
 [Security](#-security-model) ·
 [Development](#-development)
 
-<img src="docs/app-keyboard.png" width="88%" alt="The Keyboard page on an Alienware m15 R7: every key drawn to scale, lit in its own colour">
+<img src="docs/app-keyboard.png" width="88%" alt="The Keyboard page on an Alienware m15 R7: every key drawn to scale, lit as a left-to-right rainbow">
 
 </div>
 
@@ -31,10 +31,10 @@ Per-key colours, effects, a typing ripple, and a toggle in GNOME Quick Settings,
 
 | | |
 |---|---|
-| ⌨️ **Per-key colours** | The keyboard drawn to scale from its real geometry. Click or Ctrl/Shift-click keys, pick a colour, apply. |
-| 🌈 **Effects** | 5 firmware effects (breathing, wave, pulse, two-colour pulse, sweep) plus 5 rendered by the service (rainbow, spectrum, colour morph, starlight, gradient). One effect can go to any mix of keyboard and chassis lights. |
-| 💡 **Chassis lights** | Power button, lid logo, rear light strip: static colour, pulse, morph. The power button keeps its colour asleep and off. |
-| 💧 **Typing ripple** | A ring of colour from every key you press, over the current effect or a plain colour. Adjustable colour and speed (2 to 40 keys per second). |
+| ⌨️ **Per-key colors** | The keyboard drawn to scale from its real geometry. Click or Ctrl/Shift-click keys, pick a color, apply. |
+| 🌈 **Effects** | 5 firmware effects (breathing, wave, pulse, two-color pulse, sweep) plus 5 rendered by the service (rainbow, spectrum, color morph, starlight, gradient). One effect can go to any mix of keyboard and chassis lights. |
+| 💡 **Chassis lights** | Power button, lid logo, rear light strip: static color, pulse, morph. The power button keeps its color asleep and off. |
+| 💧 **Typing ripple** | A ring of color from every key you press, over the current effect or a plain color. Adjustable color and speed (2 to 40 keys per second). |
 | 🎛️ **Quick Settings** | On/off, brightness, presets and the ripple, straight from the GNOME panel. |
 | 🖥️ **Command line** | `alienfix` does everything the app does, for scripts. |
 | 🧭 **Any model** | Unknown machine? A generic model is built from the controllers found, and the *“does it blink?”* wizard maps a per-key keyboard in 3 to 5 minutes. |
@@ -43,7 +43,7 @@ Per-key colours, effects, a typing ripple, and a toggle in GNOME Quick Settings,
 <table>
 <tr>
 <td width="50%"><img src="docs/app-effects.png" alt="Effects page: one effect applied to several lighting groups"><br><sub><b>Effects</b>: one effect, applied to any mix of lights.</sub></td>
-<td width="50%"><img src="docs/app-ripple.png" alt="Ripple page: enable switch, colour, speed and what shows under the ripple"><br><sub><b>Ripple</b>: colour, speed and what shows underneath.</sub></td>
+<td width="50%"><img src="docs/app-ripple.png" alt="Ripple page: enable switch, color, speed and what shows under the ripple"><br><sub><b>Ripple</b>: color, speed and what shows underneath.</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/app-chassis.png" alt="Chassis page: power button, lid logo and the two rear-strip channels"><br><sub><b>Chassis</b>: power button, lid logo, rear strip.</sub></td>
@@ -69,10 +69,10 @@ Per-key colours, effects, a typing ripple, and a toggle in GNOME Quick Settings,
 
 | Controller | USB | What it drives |
 |---|---|---|
-| AW-ELC (“API v4”) | `187c:0550`, `187c:0551` | Chassis lights and 4-zone keyboards: static colour, pulse, morph. Power buttons are programmed for every power state. |
-| Darfon per-key keyboard (“API v5”) | `0d62:*`, FEATURE report `0xCC` | Per-key colours, 5 firmware effects, 5 effects rendered by the service, hardware dimmer, live mode, typing ripple. |
-| Legacy AlienFX (“API v2/v3”) | `187c:0511`..`0530` | Zone masks, static colour. |
-| Kernel `alienware-wmi` | `rgb_zones` sysfs | Pre-2018 desktops (X51, Alpha): static colour. |
+| AW-ELC (“API v4”) | `187c:0550`, `187c:0551` | Chassis lights and 4-zone keyboards: static color, pulse, morph. Power buttons are programmed for every power state. |
+| Darfon per-key keyboard (“API v5”) | `0d62:*`, FEATURE report `0xCC` | Per-key colors, 5 firmware effects, 5 effects rendered by the service, hardware dimmer, live mode, typing ripple. |
+| Legacy AlienFX (“API v2/v3”) | `187c:0511`..`0530` | Zone masks, static color. |
+| Kernel `alienware-wmi` | `rgb_zones` sysfs | Pre-2018 desktops (X51, Alpha): static color. |
 
 </details>
 
@@ -111,8 +111,8 @@ Open **AlienFX LEDs** from the GNOME menu. The pages follow your machine:
 
 - **Keyboard**: the per-key drawing to scale, or the keyboard zones.
 - **Effects**: one effect applied to any mix of lighting groups.
-- **Chassis**: one colour per zone, applied at once.
-- **Ripple**: a ring of colour from each key typed on the built-in keyboard, in any window. Colour, speed and what shows underneath (the current colours or effect, or a plain colour) are saved by the service.
+- **Chassis**: one color per zone, applied at once.
+- **Ripple**: a ring of color from each key typed on the built-in keyboard, in any window. Color, speed and what shows underneath (the current colors or effect, or a plain color) are saved by the service.
 - **Machine**: the detected model, the choice of model, key map import/export and the key map wizard.
 
 The header bar holds the master switch and the brightness slider.
@@ -191,6 +191,6 @@ ALIENFIX_BUS=session gui/alienfx-leds                      # the app against it
 
 </details>
 
-## 📄 Licence
+## 📄 License
 
 [GPL-3.0-or-later](LICENSE).

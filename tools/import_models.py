@@ -53,7 +53,7 @@ ELC_PIDS = {0x0550, 0x0551}
 KEYBOARD_WORDS = re.compile(r"\b(kb|keyboard)\b", re.I)
 
 
-def kb_zones(ids, labels=("Keyboard left", "Keyboard centre-left", "Keyboard centre-right", "Keyboard right")):
+def kb_zones(ids, labels=("Keyboard left", "Keyboard center-left", "Keyboard center-right", "Keyboard right")):
     return [{"id": f"kb{n}", "label": labels[n], "controller": "elc", "index": i, "group": "keyboard",
              "verified": False} for n, i in enumerate(ids)]
 

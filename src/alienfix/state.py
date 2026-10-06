@@ -22,7 +22,7 @@ DEFAULT = {
     "ripple": {"enabled": False, "color": [255, 110, 0], "speed": 10, "under": "effect",
                "background": [0, 0, 25]},
 }
-ZONE_COLOUR = [0, 90, 255]
+ZONE_COLOR = [0, 90, 255]
 
 
 def _zone_default():
@@ -45,7 +45,7 @@ class State:
         """Follow the active model: keep known zones, add new ones, drop the rest
         from the live state (the saved file keeps them until the next save)."""
         d = self.data
-        d["zones"] = {z: d["zones"].get(z, list(ZONE_COLOUR)) for z in zone_ids}
+        d["zones"] = {z: d["zones"].get(z, list(ZONE_COLOR)) for z in zone_ids}
         d["zone_effects"] = {z: d["zone_effects"].get(z, _zone_default()) for z in zone_ids}
 
     def _merge(self, saved):

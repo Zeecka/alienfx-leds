@@ -70,5 +70,5 @@ tools/import_models.py <alienfx-tools checkout> <akbl checkout>
 ```
 
 Only facts are taken: USB ids, light indices, masks and names. The sources and
-licences are listed in that script's header. Hand-verified models (like the
+licenses are listed in that script's header. Hand-verified models (like the
 m15 R7) are never overwritten.

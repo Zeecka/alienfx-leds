@@ -8,7 +8,7 @@ any logical layout; legends are only what is printed on the keycaps.
 
 The Alienware m15 R7 geometry was fitted to the top-down camera scan of
 2026-09-27 (data/keymap-20260927-151053.json): key pitch ~94 px, every row
-16u, widths snapped to 0.25u, function row half height (its centre sits
+16u, widths snapped to 0.25u, function row half height (its center sits
 0.72u above the number row). See docs/protocol-measurements.md.
 """
 import json

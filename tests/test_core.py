@@ -33,11 +33,11 @@ class Protocol(unittest.TestCase):
         self.assertEqual(out[1][:3].hex(" "), "cc 8c 13")
         self.assertTrue(all(len(r) == 64 for r in out))
 
-    def test_effect_bytes_and_colour_count(self):
+    def test_effect_bytes_and_color_count(self):
         w = protocol.kb_effect("wave", 5, (1, 2, 3), (4, 5, 6))
         self.assertEqual(w[:16].hex(" "), "cc 80 03 05 00 00 01 01 01 01 01 02 03 04 05 06")
         b = protocol.kb_effect("breathing", 7, (1, 2, 3), (4, 5, 6))
-        self.assertEqual(b[9], 0)                          # one colour -> n-1 = 0
+        self.assertEqual(b[9], 0)                          # one color -> n-1 = 0
 
     def test_brightness_scale(self):
         self.assertEqual(protocol.kb_brightness(100)[4], 255)
@@ -52,7 +52,7 @@ class Protocol(unittest.TestCase):
         states = sorted({r[6] for r in out if r[2] == 0x22})
         self.assertEqual(states, list(range(0x5B, 0x61)))
 
-    def test_zone_colors_group_by_colour_and_never_send_ff(self):
+    def test_zone_colors_group_by_color_and_never_send_ff(self):
         out = protocol.elc_zone_colors([(0, (1, 1, 1)), (1, (1, 1, 1)), (3, (9, 9, 9))])
         cmds = [r for r in out if r[2] == 0x27]
         self.assertEqual(len(cmds), 2)
@@ -227,7 +227,7 @@ class Ripple(unittest.TestCase):
         pos = {0: (0.0, 0.0), 1: (12.0, 0.0)}
         base = E.gradient(pos, 12, 0, 5, (255, 0, 0), (0, 0, 255))
         out = E.ripple_over(base, [E.Ripple(0.0, 0.0, 0.0, (0, 255, 0), speed=10)], 0.0, pos)
-        self.assertEqual(out[0], (0, 255, 0))              # under the ring: the ripple colour
+        self.assertEqual(out[0], (0, 255, 0))              # under the ring: the ripple color
         self.assertEqual(out[1], (0, 0, 255))              # elsewhere: the effect untouched
 
     def test_ripple_validation(self):

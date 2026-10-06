@@ -23,8 +23,7 @@ const DESKTOP_ID = 'io.github.zeecka.AlienFix.desktop';
 const ERROR_NOT_AUTHORIZED = 'io.github.zeecka.AlienFix1.Error.NotAuthorized';
 const BRIGHTNESS_DEBOUNCE_MS = 150;
 
-// Sous-ensemble de data/io.github.zeecka.AlienFix1.xml : seulement ce que
-// l'extension utilise.
+// Subset of data/io.github.zeecka.AlienFix1.xml: only what the extension uses.
 const IFACE_XML = `
 <node>
   <interface name="io.github.zeecka.AlienFix1">
@@ -63,12 +62,12 @@ const EFFECT_LABELS = {
     breathing: 'Breathing',
     wave: 'Wave',
     pulse: 'Pulse',
-    mixpulse: 'Two-colour pulse',
+    mixpulse: 'Two-color pulse',
     nightrider: 'Sweep',
 };
 
 const PRESETS = [
-    {label: 'Static (current colour)', effect: 'static', tempo: 7},
+    {label: 'Static (current color)', effect: 'static', tempo: 7},
     {label: 'Wave', effect: 'wave', tempo: 5},
     {label: 'Breathing', effect: 'breathing', tempo: 7},
 ];
@@ -196,7 +195,7 @@ class AlienFixIndicator extends QuickSettings.SystemIndicator {
 
                 if (error) {
                     if (!error.matches?.(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
-                        console.warn(`AlienFix : proxy D-Bus indisponible : ${error.message}`);
+                        console.warn(`AlienFX LEDs: D-Bus proxy unavailable: ${error.message}`);
                     this._available = false;
                     this._syncUi();
                     return;
@@ -267,7 +266,7 @@ class AlienFixIndicator extends QuickSettings.SystemIndicator {
             remote = Gio.DBusError.get_remote_error(error);
 
         if (remote === ERROR_NOT_AUTHORIZED) {
-            console.warn(`AlienFX LEDs: ${method} refused (not authorised)`);
+            console.warn(`AlienFX LEDs: ${method} refused (not authorized)`);
             this._errorSubtitle = 'Not allowed';
         } else {
             console.warn(`AlienFX LEDs: ${method} failed: ${error.message}`);
@@ -358,8 +357,8 @@ class AlienFixIndicator extends QuickSettings.SystemIndicator {
         const firstKey = toColor(keys[Object.keys(keys)[0]]);
         const effectC1 = toColor(effect.c1);
 
-        // In static mode the "current colour" is the keys' colour (zone
-        // keyboards have no per-key colours: use the base colour).
+        // In static mode the "current color" is the keys' color (zone
+        // keyboards have no per-key colors: use the base color).
         const base = toColor(kb.base);
         const c1 = (kb.mode === 'effect' ? effectC1 ?? firstKey : firstKey ?? base ?? effectC1) ??
             [255, 255, 255];
@@ -391,13 +390,13 @@ class AlienFixIndicator extends QuickSettings.SystemIndicator {
 
         const info = Gio.DesktopAppInfo.new(DESKTOP_ID);
         if (!info) {
-            console.warn(`AlienFix : ${DESKTOP_ID} introuvable`);
+            console.warn(`AlienFX LEDs: ${DESKTOP_ID} not found`);
             return;
         }
         try {
             info.launch([], global.create_app_launch_context(0, -1));
         } catch (e) {
-            console.warn(`AlienFix : lancement impossible : ${e.message}`);
+            console.warn(`AlienFX LEDs: cannot launch the app: ${e.message}`);
         }
     }
 

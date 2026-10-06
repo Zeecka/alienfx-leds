@@ -14,7 +14,7 @@ A model (data/models/*.json) describes one machine family:
 - "per-key": the keyboard is a Darfon-style per-key controller; its key map
   comes from a profile (profile.py).
 - "zones": the keyboard backlight is made of controller zones (group
-  "keyboard"); "Keyboard" colour and effects apply to those zones.
+  "keyboard"); "Keyboard" color and effects apply to those zones.
 - controller: "elc" (AW-ELC, USB HID API v4), "legacy" (older AlienFX USB
   HID, API v2/v3), "wmi" (the kernel's alienware-wmi rgb_zones sysfs).
   elc and wmi zones have an "index"; legacy zones a 24-bit "mask".
@@ -92,7 +92,7 @@ def load(directory):
 
 def zone_effects(zone):
     """Effects a zone supports: the ELC runs pulse/morph itself; the others
-    only hold a colour (software animation of them is not attempted)."""
+    only hold a color (software animation of them is not attempted)."""
     return ZONE_EFFECTS if zone["controller"] == "elc" else ("static",)
 
 

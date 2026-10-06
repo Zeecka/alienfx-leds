@@ -6,7 +6,7 @@
   (keycodes.py) to place the rings; nothing about them is kept.
 - What the machine has (per-key keyboard, zones, which controller drives
   each zone) comes from its model (models.py, data/models/).
-- Every mutating call is authorised by polkit, then validated (validate.py),
+- Every mutating call is authorized by polkit, then validated (validate.py),
   then applied by one worker thread per controller. The chassis takes 64 ms
   per command (2 s for the power button), so callers never wait for hardware
   and keyboard frames are never stuck behind chassis work.
@@ -525,7 +525,7 @@ class Daemon:
         z, c = validate.zone(zone, self.zone_ids), validate.color(r, g, b)
         with self.lock:
             self.state.data["zones"][z] = list(c)
-            self.state.data["zone_effects"][z]["name"] = "static"    # picking a colour = static colour
+            self.state.data["zone_effects"][z]["name"] = "static"    # picking a color = static color
         self._changed(zones=not self._is_power(z), power=self._is_power(z))
 
     def m_SetZoneEffect(self, _s, zone, name, tempo, c1, c2):

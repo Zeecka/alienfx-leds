@@ -16,7 +16,7 @@
   },
   {
    "id": "kb1",
-   "label": "Keyboard centre-left",
+   "label": "Keyboard center-left",
    "controller": "elc",
    "index": 1,
    "group": "keyboard",
@@ -24,7 +24,7 @@
   },
   {
    "id": "kb2",
-   "label": "Keyboard centre-right",
+   "label": "Keyboard center-right",
    "controller": "elc",
    "index": 2,
    "group": "keyboard",

@@ -35,14 +35,14 @@ def rainbow(pos, width, t, tempo, c1=None, c2=None):
 
 
 def spectrum(pos, width, t, tempo, c1=None, c2=None):
-    colour = _hue(t / (2 * period(tempo)))
-    return {i: colour for i in pos}
+    color = _hue(t / (2 * period(tempo)))
+    return {i: color for i in pos}
 
 
 def morph(pos, width, t, tempo, c1, c2):
     k = 0.5 - 0.5 * math.cos(2 * math.pi * t / (2 * period(tempo)))
-    colour = _mix(c1, c2, k)
-    return {i: colour for i in pos}
+    color = _mix(c1, c2, k)
+    return {i: color for i in pos}
 
 
 def gradient(pos, width, t, tempo, c1, c2):
@@ -89,23 +89,23 @@ BLACK = (0, 0, 0)
 
 
 def _band(x):
-    """1 at the centre of a band of half-width 1, 0 outside, smooth in between."""
+    """1 at the center of a band of half-width 1, 0 outside, smooth in between."""
     return 0.5 * (1 + math.cos(math.pi * x)) if abs(x) < 1 else 0.0
 
 
 def breathing(pos, width, t, tempo, c1, c2=None):
-    colour = _mix(BLACK, c1, 0.5 - 0.5 * math.cos(2 * math.pi * t / period(tempo)))
-    return {i: colour for i in pos}
+    color = _mix(BLACK, c1, 0.5 - 0.5 * math.cos(2 * math.pi * t / period(tempo)))
+    return {i: color for i in pos}
 
 
 def pulse(pos, width, t, tempo, c1, c2=None):
-    colour = _mix(c1, BLACK, (t / period(tempo)) % 1.0)        # flash, then fade
-    return {i: colour for i in pos}
+    color = _mix(c1, BLACK, (t / period(tempo)) % 1.0)        # flash, then fade
+    return {i: color for i in pos}
 
 
 def mixpulse(pos, width, t, tempo, c1, c2):
-    colour = c1 if (t / period(tempo)) % 1.0 < 0.5 else c2
-    return {i: colour for i in pos}
+    color = c1 if (t / period(tempo)) % 1.0 < 0.5 else c2
+    return {i: color for i in pos}
 
 
 def wave(pos, width, t, tempo, c1, c2):
@@ -134,7 +134,7 @@ def any_renderer(name):
 RIPPLE_SPEED = 10       # u / s, default
 RIPPLE_SPEEDS = (2, 40)  # u / s, accepted range
 RIPPLE_WIDTH = 1.3      # u, full width of the ring
-RIPPLE_REACH = 9.0      # u travelled before the ring has faded out
+RIPPLE_REACH = 9.0      # u traveled before the ring has faded out
 RIPPLE_MAX = 32
 RIPPLE_UNDER = ("effect", "color")   # what shows under the rings
 
@@ -162,14 +162,14 @@ def ripple_intensity(distance, age, speed=RIPPLE_SPEED):
 
 
 def ripple_over(base, ripples, now, pos):
-    """{id: colour}: the strongest ring at each key blended over base."""
+    """{id: color}: the strongest ring at each key blended over base."""
     out = {}
     for i, (u, v) in pos.items():
         under = base.get(i, BLACK)
-        best, colour = 0.0, under
+        best, color = 0.0, under
         for rp in ripples:
             k = ripple_intensity(math.hypot(u - rp.u, v - rp.v), now - rp.t0, rp.speed)
             if k > best:
-                best, colour = k, rp.color
-        out[i] = _mix(under, colour, best)
+                best, color = k, rp.color
+        out[i] = _mix(under, color, best)
     return out

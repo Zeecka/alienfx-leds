@@ -1,6 +1,6 @@
 """Find and drive the lighting controllers (hidraw nodes and one sysfs class).
 
-Controllers are recognised by their HID report descriptor, not by a product
+Controllers are recognized by their HID report descriptor, not by a product
 id list, so variants with another PID are still found:
 - keyboard: Darfon-style per-key controller: vendor usage page 0xFF89,
   usage 0xCC, FEATURE report 0xCC (63 bytes) — "API v5".
@@ -234,7 +234,7 @@ class Hardware:
 
     # ---- legacy AlienFX -----------------------------------------------------
     def legacy_zones(self, pairs):
-        """pairs: [(mask, rgb)]. Reset, wait for ready (best effort), colours, update."""
+        """pairs: [(mask, rgb)]. Reset, wait for ready (best effort), colors, update."""
         dev = self.legacy
         dev.ensure_open()
         size = dev.info.get("size", protocol.LEGACY_V2_SIZE)

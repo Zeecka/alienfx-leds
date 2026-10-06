@@ -75,7 +75,7 @@ def parse(text, templates):
 
 
 def key_geometry(template):
-    """{name: {"legend", "rects": [(x, y, w, h)], "u", "v"}}; u/v = centre of the main rect."""
+    """{name: {"legend", "rects": [(x, y, w, h)], "u", "v"}}; u/v = center of the main rect."""
     geo = {}
     for k in template["keys"]:
         g = geo.setdefault(k["name"], {"legend": k["legend"], "rects": []})

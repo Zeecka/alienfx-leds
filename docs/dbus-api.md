@@ -7,7 +7,7 @@
   `ALIENFIX_BUS=session`; `tests/mock_daemon.py` runs the real daemon there
   with fake hardware (`MOCK_MODEL=<model id>` simulates any model).
 
-## Authorisation
+## Authorization
 
 - `GetState`, `GetLayout`, `ListChassis`: open to everyone (nothing
   sensitive).
@@ -17,7 +17,7 @@
   `io.github.zeecka.AlienFix1.Error.NotAuthorized`.
 - Invalid argument: `io.github.zeecka.AlienFix1.Error.InvalidArgs`. Nothing
   reaches the hardware. A call that the model does not support (per-key
-  colours on a zone keyboard, an effect a zone cannot run) is an invalid
+  colors on a zone keyboard, an effect a zone cannot run) is an invalid
   argument too.
 
 ## `GetLayout()` → JSON
@@ -74,16 +74,16 @@
 
 | Method | Does |
 |---|---|
-| `SetKeyboardColor(yyy)` | Whole keyboard in one colour. Per-key: static mode. Zone keyboard: every keyboard zone. |
-| `SetKeys(a(yyyy))` | Per-key colours (`id, r, g, b`); ids must be in the key map. Per-key keyboards only. |
+| `SetKeyboardColor(yyy)` | Whole keyboard in one color. Per-key: static mode. Zone keyboard: every keyboard zone. |
+| `SetKeys(a(yyyy))` | Per-key colors (`id, r, g, b`); ids must be in the key map. Per-key keyboards only. |
 | `SetKeyboardEffect(s name, y tempo, (yyy) c1, (yyy) c2)` | See `effects` above. Per-key keyboards get 6 firmware effects plus 5 effects rendered by the daemon (rainbow, spectrum, morph, starlight, gradient). Tempo 1..30 is a period: higher is slower. |
-| `SetBrightness(y)` | 0..100. Keyboard: hardware dimmer. Zones: colour scaling. |
-| `SetZoneColor(s zone, y r, y g, y b)` | Static colour for one zone. |
+| `SetBrightness(y)` | 0..100. Keyboard: hardware dimmer. Zones: color scaling. |
+| `SetZoneColor(s zone, y r, y g, y b)` | Static color for one zone. |
 | `SetZoneEffect(s zone, s name, y tempo, (yyy) c1, (yyy) c2)` | `name` must be in that zone's `effects`: AW-ELC zones take static, pulse and morph (c1 → c2); legacy and WMI zones take static only. |
 | `SetEnabled(b)` | All lights off, or back to the saved state. |
 | `SetRipple(b enabled, (yyy) color, y speed, s under, (yyy) background)` | Typing ripple, saved with the state. Per-key keyboards only (`ripple.available`). See below. |
 | `SelectModel(s id)` | Use one of the shipped models (`ListChassis` → `models`); `""` goes back to automatic detection. Emits `LayoutChanged`. |
-| `ListChassis()` → JSON | Keyboard templates, the model catalogue, the active model, the DMI product name and the detected controllers. |
+| `ListChassis()` → JSON | Keyboard templates, the model catalog, the active model, the DMI product name and the detected controllers. |
 | `SaveProfile(s)` / `ResetProfile()` | Store or drop a per-key key map, see below. |
 | `BeginLive()`, `LiveFrame(a(yyyy))`, `EndLive()` | Live mode, see below. |
 
@@ -105,7 +105,7 @@ one.
 
 When `enabled`, each key pressed on the built-in keyboard sends a ring of
 `color` across it at `speed` keys per second (2..40). The ring fades out
-after about 9 keys. `under` is `"effect"` (rings over the current colours or
+after about 9 keys. `under` is `"effect"` (rings over the current colors or
 effect) or `"color"` (over `background`).
 
 - The daemon reads key presses (evdev) **only while the ripple is on** and
@@ -127,7 +127,7 @@ effect) or `"color"` (over `background`).
 - If the client leaves the bus, the daemon ends live mode and restores the
   state.
 - While the keyboard is busy, pending frames are **merged**, so the latest
-  colour of every id is always written.
+  color of every id is always written.
 - A client should wait for the reply to a `LiveFrame` before sending the next
   one, and drop the frames in between.
 

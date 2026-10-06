@@ -5,7 +5,7 @@
   Object: /io/github/zeecka/AlienFix
 
   This is deliberately narrow: lighting only, no raw report pass-through.
-  Every mutating method is authorised by polkit (action
+  Every mutating method is authorized by polkit (action
   io.github.zeecka.alienfix.control: active local session only) and every
   argument is validated by the daemon before it reaches the hardware.
 -->
@@ -25,7 +25,7 @@
       <arg name="layout_json" type="s" direction="out"/>
     </method>
 
-    <!-- Read-only: chassis templates, the model catalogue, this machine's DMI
+    <!-- Read-only: chassis templates, the model catalog, this machine's DMI
          product name, detected controllers and the active profile, as JSON. -->
     <method name="ListChassis">
       <arg name="info_json" type="s" direction="out"/>
@@ -48,7 +48,7 @@
       <arg name="model_id" type="s" direction="in"/>
     </method>
 
-    <!-- Whole keyboard one colour (per-key keyboard: static mode; zone
+    <!-- Whole keyboard one color (per-key keyboard: static mode; zone
          keyboard: every keyboard zone). -->
     <method name="SetKeyboardColor">
       <arg name="r" type="y" direction="in"/>
@@ -56,8 +56,8 @@
       <arg name="b" type="y" direction="in"/>
     </method>
 
-    <!-- Per-key colours (static mode). ids: canonical 0..139 present in the
-         layout; at most 140 entries. Keys not listed keep their colour. -->
+    <!-- Per-key colors (static mode). ids: canonical 0..139 present in the
+         layout; at most 140 entries. Keys not listed keep their color. -->
     <method name="SetKeys">
       <arg name="keys" type="a(yyyy)" direction="in"/>
     </method>
@@ -75,7 +75,7 @@
       <arg name="c2" type="(yyy)" direction="in"/>
     </method>
 
-    <!-- 0..100. Keyboard: hardware dimmer. Chassis: colour scaling
+    <!-- 0..100. Keyboard: hardware dimmer. Chassis: color scaling
          (no hardware dimmer observed). -->
     <method name="SetBrightness">
       <arg name="percent" type="y" direction="in"/>
@@ -107,11 +107,11 @@
 
     <!-- Typing ripple (per-key keyboards), saved like the rest of the
          state. When enabled, each key pressed on the built-in keyboard
-         sends a ring of colour across it; the daemon reads key presses only
+         sends a ring of color across it; the daemon reads key presses only
          while it is on, and keeps nothing about them. speed: 2..40 keys per
-         second. under: "effect" (rings over the current colours or effect;
+         second. under: "effect" (rings over the current colors or effect;
          firmware effects are then redrawn in software) or "color" (over
-         background). Not authorised on keyboards without per-key lighting. -->
+         background). Not authorized on keyboards without per-key lighting. -->
     <method name="SetRipple">
       <arg name="enabled" type="b" direction="in"/>
       <arg name="color" type="(yyy)" direction="in"/>
@@ -125,7 +125,7 @@
          Frames are transient: never saved. Live mode ends on EndLive, or
          automatically when the caller leaves the bus, and the saved state is
          restored. Frames are merged while the keyboard is busy: the
-         latest colour of every id always reaches the hardware. -->
+         latest color of every id always reaches the hardware. -->
     <method name="BeginLive"/>
     <method name="LiveFrame">
       <arg name="keys" type="a(yyyy)" direction="in"/>

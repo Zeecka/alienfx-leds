@@ -42,8 +42,8 @@ class FakeHardware:
     """Records calls instead of writing reports."""
 
     def __init__(self):
-        catalogue = models.load(ROOT / "data" / "models")
-        m = catalogue.get(MODEL)
+        catalog = models.load(ROOT / "data" / "models")
+        m = catalog.get(MODEL)
         ctrls = {z["controller"] for z in m["zones"]} if m else {"elc"}
         per_key = (m or {"keyboard": {"type": "per-key"}})["keyboard"]["type"] == "per-key"
         self._presence = {"keyboard": per_key, "elc": "elc" in ctrls, "legacy": "legacy" in ctrls,
@@ -115,10 +115,10 @@ class MockDaemon(daemon.Daemon):
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)s", stream=sys.stdout)
     daemon.Hardware = FakeHardware
-    catalogue = models.load(ROOT / "data" / "models")
-    dmi = (catalogue[MODEL]["dmi_product"] or [""])[0] if MODEL in catalogue else "Mock PC"
+    catalog = models.load(ROOT / "data" / "models")
+    dmi = (catalog[MODEL]["dmi_product"] or [""])[0] if MODEL in catalog else "Mock PC"
     daemon.Daemon.dmi_product = staticmethod(lambda: dmi)
-    if MODEL in catalogue and not catalogue[MODEL]["dmi_product"] and not catalogue[MODEL].get("usb"):
+    if MODEL in catalog and not catalog[MODEL]["dmi_product"] and not catalog[MODEL].get("usb"):
         Path(os.environ["STATE_DIRECTORY"], "model").write_text(MODEL)
     MockDaemon("session").run()
 

@@ -1,7 +1,7 @@
 """Validation of everything that arrives over D-Bus, before any hardware use.
 
 Rule: nothing received is forwarded as-is. Integers are re-parsed and bounded,
-colours are rebuilt from three bounded ints, names are looked up in closed
+colors are rebuilt from three bounded ints, names are looked up in closed
 tables and replaced by our own constants. Anything else raises Invalid.
 """
 from . import effects, protocol
@@ -30,7 +30,7 @@ def color(r, g, b):
 
 def key_colors(entries, allowed_ids):
     """a(yyyy) -> {id: (r, g, b)} with ids restricted to allowed_ids (the active
-    profile for persistent colours; 0..254 for transient live frames)."""
+    profile for persistent colors; 0..254 for transient live frames)."""
     if not isinstance(entries, (list, tuple)):
         raise Invalid("keys: array expected")
     if len(entries) > MAX_KEYS:

@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""alienfix: command line client for alienfixd (system bus, polkit-authorised).
+"""alienfix: command line client for alienfixd (system bus, polkit-authorized).
 
   alienfix status | layout | zones
   alienfix color '#ff0000'              whole keyboard
@@ -8,7 +8,7 @@
   alienfix brightness 60
   alienfix zone power '#ffffff'         zone ids: see `alienfix zones`
   alienfix zone lid pulse [--tempo 6] [#c1] [#c2]
-  alienfix models                       the model catalogue (* = active)
+  alienfix models                       the model catalog (* = active)
   alienfix model dell-g15-5520 | auto   use that model's lighting map
   alienfix on | off
 """
@@ -24,7 +24,7 @@ NAME, PATH, IFACE = "io.github.zeecka.AlienFix", "/io/github/zeecka/AlienFix", "
 def rgb(s):
     s = s.lstrip("#")
     if len(s) != 6:
-        raise SystemExit(f"colour {s!r}: use #rrggbb")
+        raise SystemExit(f"color {s!r}: use #rrggbb")
     return tuple(int(s[i:i + 2], 16) for i in (0, 2, 4))
 
 
@@ -52,7 +52,7 @@ def ids_by_key(lay):
     return by
 
 
-def tempo_colours(args, tempo, c1, c2):
+def tempo_colors(args, tempo, c1, c2):
     """[--tempo N] [#c1] [#c2] in any order -> (tempo, c1, c2)."""
     cols, i = [], 0
     while i < len(args):
@@ -89,7 +89,7 @@ def main(argv):
         call("SetKeys", "(a(yyyy))", entries)
     elif cmd == "effect":
         call("SetKeyboardEffect", "(sy(yyy)(yyy))", rest[0],
-             *tempo_colours(rest[1:], 5, (0, 90, 255), (255, 0, 160)))
+             *tempo_colors(rest[1:], 5, (0, 90, 255), (255, 0, 160)))
     elif cmd == "brightness":
         call("SetBrightness", "(y)", int(rest[0]))
     elif cmd == "zones":
@@ -102,7 +102,7 @@ def main(argv):
         call("SetZoneColor", "(syyy)", rest[0], *rgb(rest[1]))
     elif cmd == "zone":
         call("SetZoneEffect", "(ssy(yyy)(yyy))", rest[0], rest[1],
-             *tempo_colours(rest[2:], 6, (0, 90, 255), (0, 0, 0)))
+             *tempo_colors(rest[2:], 6, (0, 90, 255), (0, 0, 0)))
     elif cmd == "models":
         info = json.loads(call("ListChassis")[0])
         print(f"product name: {info['dmi_product'] or '?'}   controllers: "

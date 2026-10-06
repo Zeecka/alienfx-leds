@@ -2,7 +2,7 @@
 Type=Application
 Name=AlienFX LEDs
 GenericName=Keyboard lighting
-Comment=Per-key keyboard colours, effects and chassis lights for Alienware laptops
+Comment=Per-key keyboard colors, effects and chassis lights for Alienware laptops
 Exec=alienfx-leds
 Icon=io.github.zeecka.AlienFix
 Terminal=false
