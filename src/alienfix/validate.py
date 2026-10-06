@@ -4,10 +4,11 @@ Rule: nothing received is forwarded as-is. Integers are re-parsed and bounded,
 colors are rebuilt from three bounded ints, names are looked up in closed
 tables and replaced by our own constants. Anything else raises Invalid.
 """
+
 from . import effects, protocol
 
 # keyboard: static, hardware effects (firmware), software effects (daemon-rendered)
-EFFECTS = ("static",) + tuple(protocol.EFFECTS) + effects.SOFTWARE
+EFFECTS = ("static", *protocol.EFFECTS, *effects.SOFTWARE)
 ZONE_EFFECTS = protocol.ZONE_EFFECTS
 MAX_KEYS = 255
 
@@ -49,17 +50,23 @@ def key_colors(entries, allowed_ids):
 def effect(name, tempo, c1, c2):
     if name not in EFFECTS:
         raise Invalid("effect: unknown")
-    return {"name": EFFECTS[EFFECTS.index(name)],       # our constant, not the caller's string
-            "tempo": _int(tempo, protocol.TEMPO_MIN, protocol.TEMPO_MAX, "tempo"),
-            "c1": color(*c1), "c2": color(*c2)}
+    return {
+        "name": EFFECTS[EFFECTS.index(name)],  # our constant, not the caller's string
+        "tempo": _int(tempo, protocol.TEMPO_MIN, protocol.TEMPO_MAX, "tempo"),
+        "c1": color(*c1),
+        "c2": color(*c2),
+    }
 
 
 def zone_effect(name, tempo, c1, c2, allowed=ZONE_EFFECTS):
     if name not in ZONE_EFFECTS or name not in allowed:
         raise Invalid("zone effect: unknown")
-    return {"name": ZONE_EFFECTS[ZONE_EFFECTS.index(name)],
-            "tempo": _int(tempo, protocol.TEMPO_MIN, protocol.TEMPO_MAX, "tempo"),
-            "c1": color(*c1), "c2": color(*c2)}
+    return {
+        "name": ZONE_EFFECTS[ZONE_EFFECTS.index(name)],
+        "tempo": _int(tempo, protocol.TEMPO_MIN, protocol.TEMPO_MAX, "tempo"),
+        "c1": color(*c1),
+        "c2": color(*c2),
+    }
 
 
 def zone(name, zones):
@@ -79,7 +86,10 @@ def ripple(enabled, rgb, speed, under, background):
         raise Invalid("ripple: boolean expected")
     if under not in effects.RIPPLE_UNDER:
         raise Invalid("ripple: under must be effect or color")
-    return {"enabled": enabled, "color": list(color(*rgb)),
-            "speed": _int(speed, *effects.RIPPLE_SPEEDS, "ripple speed"),
-            "under": effects.RIPPLE_UNDER[effects.RIPPLE_UNDER.index(under)],
-            "background": list(color(*background))}
+    return {
+        "enabled": enabled,
+        "color": list(color(*rgb)),
+        "speed": _int(speed, *effects.RIPPLE_SPEEDS, "ripple speed"),
+        "under": effects.RIPPLE_UNDER[effects.RIPPLE_UNDER.index(under)],
+        "background": list(color(*background)),
+    }

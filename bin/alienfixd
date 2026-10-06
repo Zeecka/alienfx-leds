@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 import sys
+
 sys.path.insert(0, "/usr/local/lib/alienfix")
 from alienfix.daemon import main
+
 main()

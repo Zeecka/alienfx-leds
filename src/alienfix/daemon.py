@@ -13,6 +13,7 @@
 - State persists in $STATE_DIRECTORY/state.json and is re-applied at start
   and after resume (logind PrepareForSleep).
 """
+
 import json
 import logging
 import os
@@ -38,15 +39,21 @@ READ_ONLY = {"GetState", "GetLayout", "ListChassis"}
 ALL_IDS = frozenset(range(profile.MAX_ID + 1))
 AUTH_TTL = 30.0
 # Keyboard effects on a zone keyboard: what each name becomes on ELC zones.
-ZONE_KB_EFFECT = {"static": "static", "pulse": "pulse", "breathing": "pulse",
-                  "morph": "morph", "wave": "morph", "mixpulse": "morph"}
+ZONE_KB_EFFECT = {
+    "static": "static",
+    "pulse": "pulse",
+    "breathing": "pulse",
+    "morph": "morph",
+    "wave": "morph",
+    "mixpulse": "morph",
+}
 
 log = logging.getLogger("alienfixd")
 
 
 def write_atomic(path, text):
     tmp = path.with_suffix(".tmp")
-    tmp.write_text(text)
+    tmp.write_text(text, encoding="utf-8")
     os.replace(tmp, path)
 
 
@@ -62,7 +69,7 @@ class Worker(threading.Thread):
     def request(self, **what):
         with self.cv:
             frame = what.pop("frame", None)
-            if frame is not None:        # merge partial live frames, never drop one:
+            if frame is not None:  # merge partial live frames, never drop one:
                 self.pending["frame"] = {**self.pending.get("frame", {}), **frame}
             if what.pop("enter", False):
                 self.pending["enter"] = True
@@ -77,7 +84,7 @@ class Worker(threading.Thread):
                 job, self.pending = self.pending, {}
             try:
                 self.apply(job)
-            except Exception as e:            # keep serving; the next request retries
+            except Exception as e:  # keep serving; the next request retries
                 log.error("%s: %s", self.name, e)
 
 
@@ -87,11 +94,13 @@ class Daemon:
         self.profile_path = state_dir / "profile.json"
         self.model_path = state_dir / "model"
         self.templates = profile.load_templates(DATA / "chassis")
-        self.shipped = [profile.validate(json.loads(p.read_text()), self.templates)
-                        for p in sorted((DATA / "profiles").glob("*.json"))]
+        self.shipped = [
+            profile.validate(json.loads(p.read_text(encoding="utf-8")), self.templates)
+            for p in sorted((DATA / "profiles").glob("*.json"))
+        ]
         self.models = models.load(DATA / "models")
         self.hw = Hardware()
-        self._load_model()
+        self._load_model()  # first: the model and key map say which zones and ids exist
         self._load_profile()
         self.state = State(state_dir / "state.json", self.key_ids, self.zone_ids)
         self.lock = threading.Lock()
@@ -100,28 +109,28 @@ class Daemon:
         self.live_frames, self.live_t0 = 0, 0.0
         self.auth_cache = {}
         self.kb_worker = Worker("keyboard", self._apply_keyboard)
-        self.soft_on = False          # keyboard already in per-key mode for a software effect
+        self.soft_on = False  # keyboard already in per-key mode for a software effect
         self.anim_wake = threading.Event()
-        self.ripples = []             # rings in flight (under self.lock)
+        self.ripples = []  # rings in flight (under self.lock)
         self.evdev_names = keycodes.load_evdev_names()
         self.keys = keycodes.KeyWatcher(self._on_key_press, self.hw.keyboard_usb())
         self.elc_worker = Worker("chassis", self._apply_chassis)
         self.bus_type = bus_type
-        self.conn = None
+        self.conn: Gio.DBusConnection  # set by run()
 
     # ---- profile -----------------------------------------------------------
 
     @staticmethod
     def dmi_product():
         try:
-            return Path("/sys/class/dmi/id/product_name").read_text().strip()
+            return Path("/sys/class/dmi/id/product_name").read_text(encoding="utf-8").strip()
         except OSError:
             return ""
 
     def _load_model(self):
         """The model the user chose, else the one matching DMI, else a generic one."""
         try:
-            forced = self.model_path.read_text().strip()
+            forced = self.model_path.read_text(encoding="utf-8").strip()
         except OSError:
             forced = ""
         present = self.hw.presence()
@@ -133,8 +142,6 @@ class Daemon:
         self.zones = {z["id"]: z for z in m["zones"]}
         self.zone_ids = list(self.zones)
         self.kb_type = m.get("keyboard", {"type": "none"})["type"]
-        if getattr(self, "state", None):
-            self.state.set_zones(self.zone_ids)
         log.info("model %s (%s, %s keyboard, %d zones)", m["id"], m["support"], self.kb_type, len(self.zones))
 
     def _load_profile(self):
@@ -145,7 +152,7 @@ class Daemon:
         allowed = [t for t in self.model.get("keyboard", {}).get("chassis", []) if t in self.templates]
         if self.kb_type == "per-key":
             try:
-                prof = profile.parse(self.profile_path.read_text(), self.templates)
+                prof = profile.parse(self.profile_path.read_text(encoding="utf-8"), self.templates)
                 self.custom = True
             except FileNotFoundError:
                 pass
@@ -154,18 +161,26 @@ class Daemon:
             if prof is None:
                 match = [p for p in self.shipped if p["chassis"] in allowed]
                 prof = match[0] if match else None
-        if prof is None:              # no key map (yet): draw the model's first template, no ids
+        if prof is None:  # no key map (yet): draw the model's first template, no ids
             tid = allowed[0] if allowed else next(iter(self.templates))
             prof = {"version": 1, "name": "No key map yet", "chassis": tid, "method": "blink", "keys": {}}
         self.profile = prof
         self.layout = profile.layout(prof, self.templates[prof["chassis"]])
         self.key_ids = {int(k) for k in self.layout["keys"]}
         geo = profile.key_geometry(self.templates[prof["chassis"]])
-        self.key_origin = {name: (g["u"], g["v"]) for name, g in geo.items()}   # keys without LED too
-        if getattr(self, "state", None):
-            self.state.key_ids = sorted(self.key_ids)
-        log.info("profile %r on chassis %s (%d ids, %s)", prof["name"], prof["chassis"],
-                 len(self.key_ids), "custom" if self.custom else "shipped")
+        self.key_origin = {name: (g["u"], g["v"]) for name, g in geo.items()}  # keys without LED too
+        log.info(
+            "profile %r on chassis %s (%d ids, %s)",
+            prof["name"],
+            prof["chassis"],
+            len(self.key_ids),
+            "custom" if self.custom else "shipped",
+        )
+
+    def _sync_state(self):
+        """After a model or key map change: the state follows the new zones and ids."""
+        self.state.set_zones(self.zone_ids)
+        self.state.key_ids = sorted(self.key_ids)
 
     def _layout_changed(self):
         self.conn.emit_signal(None, PATH, IFACE, "LayoutChanged", None)
@@ -199,9 +214,9 @@ class Daemon:
             return
         self.soft_on = False
         if not enabled:
-            self.hw.keyboard_static({i: (0, 0, 0) for i in colors}, 0)
+            self.hw.keyboard_static(dict.fromkeys(colors, (0, 0, 0)), 0)
         elif soft:
-            self.anim_wake.set()          # the animator draws; next soft frame re-enters the mode
+            self.anim_wake.set()  # the animator draws; next soft frame re-enters the mode
         elif mode == "effect" and effect["name"] != "static":
             self.hw.keyboard_effect(effect, bright)
         else:
@@ -212,15 +227,16 @@ class Daemon:
             d = self.state.data
             pct = d["brightness"] if d["enabled"] else 0
             zones = {z: protocol.scale(c, pct) for z, c in d["zones"].items()}
-            fx = {z: {**e, "c1": zones[z], "c2": protocol.scale(e["c2"], pct)}
-                  for z, e in d["zone_effects"].items()}
+            fx = {z: {**e, "c1": zones[z], "c2": protocol.scale(e["c2"], pct)} for z, e in d["zone_effects"].items()}
             if not d["enabled"]:
                 fx = {z: {**e, "name": "static"} for z, e in fx.items()}
             spec = dict(self.zones)
         if job.get("zones"):
             # index order: the m15 R7 sequence verified on camera, byte for byte
-            plain = sorted((z for z in spec.values() if z.get("role") != "power"),
-                           key=lambda z: (z["controller"], z.get("index", 0), z.get("mask", 0)))
+            plain = sorted(
+                (z for z in spec.values() if z.get("role") != "power"),
+                key=lambda z: (z["controller"], z.get("index", 0), z.get("mask", 0)),
+            )
             by = {c: [z for z in plain if z["controller"] == c] for c in models.CONTROLLERS}
             static = [(z["index"], zones[z["id"]]) for z in by["elc"] if fx[z["id"]]["name"] == "static"]
             animated = [(z["index"], fx[z["id"]]) for z in by["elc"] if fx[z["id"]]["name"] != "static"]
@@ -242,9 +258,15 @@ class Daemon:
     def _soft(self, d):
         """Whether the daemon draws the keyboard frame by frame: a software
         effect, or anything under the typing ripple. Caller holds the lock."""
-        return (d["enabled"] and self.live_owner is None and self.kb_type == "per-key"
-                and (d["ripple"]["enabled"] or (d["keyboard"]["mode"] == "effect"
-                                                and d["keyboard"]["effect"]["name"] in effects.SOFTWARE)))
+        return (
+            d["enabled"]
+            and self.live_owner is None
+            and self.kb_type == "per-key"
+            and (
+                d["ripple"]["enabled"]
+                or (d["keyboard"]["mode"] == "effect" and d["keyboard"]["effect"]["name"] in effects.SOFTWARE)
+            )
+        )
 
     def _animate(self):
         """Render the keyboard in software (~25 fps while something moves)."""
@@ -281,11 +303,12 @@ class Daemon:
                 base = {i: tuple(rp["background"]) for i in pos}
             else:
                 base = colors
-            moving = bool(ripples) or (render is not None and (eff["name"] in effects.ANIMATED
-                                                                or eff["name"] in effects.LOOKALIKE))
+            moving = bool(ripples) or (
+                render is not None and (eff["name"] in effects.ANIMATED or eff["name"] in effects.LOOKALIKE)
+            )
             if moving or not drawn or not self.soft_on:
                 self.kb_worker.request(soft=effects.ripple_over(base, ripples, now, pos) if ripples else base)
-                drawn = not ripples           # once the last ring is gone, draw a clean frame
+                drawn = not ripples  # once the last ring is gone, draw a clean frame
             if moving:
                 time.sleep(0.04)
             else:
@@ -302,7 +325,7 @@ class Daemon:
             if not rp["enabled"]:
                 return
             self.ripples.append(effects.Ripple(*origin, time.monotonic(), rp["color"], rp["speed"]))
-            del self.ripples[:-effects.RIPPLE_MAX]
+            del self.ripples[: -effects.RIPPLE_MAX]
         self.anim_wake.set()
 
     def _sync_keys(self):
@@ -330,16 +353,22 @@ class Daemon:
         self.apply_all()
         self._sync_keys()
         bt = Gio.BusType.SESSION if self.bus_type == "session" else Gio.BusType.SYSTEM
-        info = Gio.DBusNodeInfo.new_for_xml((DATA / f"{IFACE}.xml").read_text()).interfaces[0]
+        info = Gio.DBusNodeInfo.new_for_xml((DATA / f"{IFACE}.xml").read_text(encoding="utf-8")).interfaces[0]
         self.conn = Gio.bus_get_sync(bt, None)
         self.conn.register_object(PATH, info, self._on_call, None, None)
         Gio.bus_own_name_on_connection(self.conn, NAME, Gio.BusNameOwnerFlags.NONE, None, None)
         if bt == Gio.BusType.SYSTEM:
-            self.conn.signal_subscribe("org.freedesktop.login1", "org.freedesktop.login1.Manager",
-                                       "PrepareForSleep", "/org/freedesktop/login1", None,
-                                       Gio.DBusSignalFlags.NONE, self._on_sleep)
+            self.conn.signal_subscribe(
+                "org.freedesktop.login1",
+                "org.freedesktop.login1.Manager",
+                "PrepareForSleep",
+                "/org/freedesktop/login1",
+                None,
+                Gio.DBusSignalFlags.NONE,
+                self._on_sleep,
+            )
         loop = GLib.MainLoop()
-        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, loop.quit)
+        GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, lambda: loop.quit() or GLib.SOURCE_REMOVE)
         log.info("serving %s on the %s bus, devices %s", NAME, self.bus_type, self.hw.presence())
         loop.run()
 
@@ -357,15 +386,24 @@ class Daemon:
         if cached and cached > time.monotonic():
             self._dispatch(sender, method, params, inv)
             return
-        if self.bus_type == "session":           # test mode: no polkit on the session bus
+        if self.bus_type == "session":  # test mode: no polkit on the session bus
             self._dispatch(sender, method, params, inv)
             return
-        conn.call("org.freedesktop.PolicyKit1", "/org/freedesktop/PolicyKit1/Authority",
-                  "org.freedesktop.PolicyKit1.Authority", "CheckAuthorization",
-                  GLib.Variant("((sa{sv})sa{ss}us)",
-                               (("system-bus-name", {"name": GLib.Variant("s", sender)}), ACTION, {}, 0, "")),
-                  GLib.VariantType("((bba{ss}))"), Gio.DBusCallFlags.NONE, 5000, None,
-                  self._on_auth, (sender, method, params, inv))
+        conn.call(
+            "org.freedesktop.PolicyKit1",
+            "/org/freedesktop/PolicyKit1/Authority",
+            "org.freedesktop.PolicyKit1.Authority",
+            "CheckAuthorization",
+            GLib.Variant(
+                "((sa{sv})sa{ss}us)", (("system-bus-name", {"name": GLib.Variant("s", sender)}), ACTION, {}, 0, "")
+            ),
+            GLib.VariantType("((bba{ss}))"),
+            Gio.DBusCallFlags.NONE,
+            5000,
+            None,
+            self._on_auth,
+            (sender, method, params, inv),
+        )
 
     def _on_auth(self, conn, res, ctx):
         sender, method, params, inv = ctx
@@ -424,33 +462,45 @@ class Daemon:
         return []
 
     def m_GetLayout(self, _s):
-        pub = {**self.layout, "model": models.public(self.model), "model_forced": self.model_forced,
-               "zones": models.public_zones(self.model), "effects": self._keyboard_effects(),
-               "zone_effects": list(validate.ZONE_EFFECTS), "custom": self.custom}
+        pub = {
+            **self.layout,
+            "model": models.public(self.model),
+            "model_forced": self.model_forced,
+            "zones": models.public_zones(self.model),
+            "effects": self._keyboard_effects(),
+            "zone_effects": list(validate.ZONE_EFFECTS),
+            "custom": self.custom,
+        }
         return GLib.Variant("(s)", (json.dumps(pub, ensure_ascii=False),))
 
     def m_ListChassis(self, _s):
-        out = {"dmi_product": self.dmi_product(), "custom": self.custom,
-               "profile": {k: self.profile[k] for k in ("name", "chassis", "method")},
-               "model": self.model["id"], "model_forced": self.model_forced,
-               "models": [{k: m.get(k) for k in ("id", "name", "support", "dmi_product")}
-                          for m in self.models.values()],
-               "devices": self.hw.presence(),
-               "templates": [{k: t.get(k) for k in ("id", "name", "layout", "verified", "note", "dmi_product")}
-                             for t in self.templates.values()]}
+        out = {
+            "dmi_product": self.dmi_product(),
+            "custom": self.custom,
+            "profile": {k: self.profile[k] for k in ("name", "chassis", "method")},
+            "model": self.model["id"],
+            "model_forced": self.model_forced,
+            "models": [{k: m.get(k) for k in ("id", "name", "support", "dmi_product")} for m in self.models.values()],
+            "devices": self.hw.presence(),
+            "templates": [
+                {k: t.get(k) for k in ("id", "name", "layout", "verified", "note", "dmi_product")}
+                for t in self.templates.values()
+            ],
+        }
         return GLib.Variant("(s)", (json.dumps(out, ensure_ascii=False),))
 
     def m_SelectModel(self, _s, model_id):
-        """"" = automatic (DMI); otherwise one of the shipped model ids."""
+        """ "" = automatic (DMI); otherwise one of the shipped model ids."""
         if model_id and model_id not in self.models:
             raise validate.Invalid("model: unknown")
         if model_id:
-            write_atomic(self.model_path, self.models[model_id]["id"])     # our string, not the caller's
+            write_atomic(self.model_path, self.models[model_id]["id"])  # our string, not the caller's
         else:
             self.model_path.unlink(missing_ok=True)
         with self.lock:
             self._load_model()
             self._load_profile()
+            self._sync_state()
         self.conn.emit_signal(None, PATH, IFACE, "LayoutChanged", None)
         self._changed(keyboard=True, zones=True, power=True)
 
@@ -467,12 +517,14 @@ class Daemon:
         write_atomic(self.profile_path, json.dumps(prof, indent=1))
         with self.lock:
             self._load_profile()
+            self._sync_state()
         self._layout_changed()
 
     def m_ResetProfile(self, _s):
         self.profile_path.unlink(missing_ok=True)
         with self.lock:
             self._load_profile()
+            self._sync_state()
         self._layout_changed()
 
     def m_SetKeyboardColor(self, _s, r, g, b):
@@ -506,10 +558,13 @@ class Daemon:
             kb["mode"] = "static" if eff["name"] == "static" else "effect"
             if eff["name"] != "static":
                 kb["effect"] = {**eff, "c1": list(eff["c1"]), "c2": list(eff["c2"])}
-            for z in self._keyboard_zones():         # zone keyboard: the controller animates
+            for z in self._keyboard_zones():  # zone keyboard: the controller animates
                 self.state.data["zones"][z] = list(eff["c1"])
-                self.state.data["zone_effects"][z] = {"name": ZONE_KB_EFFECT[eff["name"]],
-                                                      "tempo": eff["tempo"], "c2": list(eff["c2"])}
+                self.state.data["zone_effects"][z] = {
+                    "name": ZONE_KB_EFFECT[eff["name"]],
+                    "tempo": eff["tempo"],
+                    "c2": list(eff["c2"]),
+                }
         self._changed(keyboard=True, zones=self.kb_type == "zones")
 
     def m_SetBrightness(self, _s, pct):
@@ -525,7 +580,7 @@ class Daemon:
         z, c = validate.zone(zone, self.zone_ids), validate.color(r, g, b)
         with self.lock:
             self.state.data["zones"][z] = list(c)
-            self.state.data["zone_effects"][z]["name"] = "static"    # picking a color = static color
+            self.state.data["zone_effects"][z]["name"] = "static"  # picking a color = static color
         self._changed(zones=not self._is_power(z), power=self._is_power(z))
 
     def m_SetZoneEffect(self, _s, zone, name, tempo, c1, c2):
@@ -533,8 +588,7 @@ class Daemon:
         eff = validate.zone_effect(name, tempo, c1, c2, models.zone_effects(self.zones[z]))
         with self.lock:
             self.state.data["zones"][z] = list(eff["c1"])
-            self.state.data["zone_effects"][z] = {"name": eff["name"], "tempo": eff["tempo"],
-                                                  "c2": list(eff["c2"])}
+            self.state.data["zone_effects"][z] = {"name": eff["name"], "tempo": eff["tempo"], "c2": list(eff["c2"])}
         self._changed(zones=not self._is_power(z), power=self._is_power(z))
 
     def m_SetEnabled(self, _s, enabled):
@@ -560,21 +614,19 @@ class Daemon:
         self.live_frames, self.live_t0 = 0, time.monotonic()
         if not self.live_watch:
             self.live_watch = Gio.bus_watch_name_on_connection(
-                self.conn, sender, Gio.BusNameWatcherFlags.NONE, None, lambda *_: self._end_live())
+                self.conn, sender, Gio.BusNameWatcherFlags.NONE, None, lambda *_: self._end_live()
+            )
         self.kb_worker.request(frame={}, enter=True)
-        return None
 
     def m_LiveFrame(self, sender, entries):
         if self.live_owner != sender:
             raise validate.Invalid("BeginLive first")
-        frame = validate.key_colors(entries, ALL_IDS)   # transient: the wizard blinks unknown ids
-        self.kb_worker.request(frame=frame)             # coalesced by the worker, never dropped
-        return None
+        frame = validate.key_colors(entries, ALL_IDS)  # transient: the wizard blinks unknown ids
+        self.kb_worker.request(frame=frame)  # coalesced by the worker, never dropped
 
     def m_EndLive(self, sender):
         if self.live_owner == sender:
             self._end_live()
-        return None
 
     def _end_live(self):
         dt, n = time.monotonic() - self.live_t0, self.live_frames

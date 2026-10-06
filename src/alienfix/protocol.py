@@ -21,17 +21,17 @@ MODE_SETTLE = 0.1
 # wave (frozen band), 0x5-0x7 show nothing, 0xB shows nothing without typing.
 EFFECTS = {
     "breathing": 0x02,
-    "wave": 0x03,        # two-color when n = 2
+    "wave": 0x03,  # two-color when n = 2
     "pulse": 0x08,
-    "mixpulse": 0x09,    # alternates c1 / c2
+    "mixpulse": 0x09,  # alternates c1 / c2
     "nightrider": 0x0A,
 }
-TEMPO_MIN, TEMPO_MAX = 1, 30   # period: wave loops in ~0.6 s x tempo
+TEMPO_MIN, TEMPO_MAX = 1, 30  # period: wave loops in ~0.6 s x tempo
 
 # Power button stores one color per power state (0x5b..0x60); the SDK
 # programs all six and so do we, so it keeps its color when asleep/off.
 POWER_STATES = (0x5B, 0x5C, 0x5D, 0x5E, 0x5F, 0x60)
-POWER_INDEX = 2                 # m15 R7, measured: only index 2 moves the button
+POWER_INDEX = 2  # m15 R7, measured: only index 2 moves the button
 # Which ELC index lights what is per model (data/models/). On the m15 R7,
 # measured with a camera: 3 = lid logo, 0 and 1 = the two rear-strip channels.
 
@@ -50,6 +50,7 @@ def _elc(*payload):
 
 # ---- keyboard -------------------------------------------------------------
 
+
 def kb_custom_mode():
     """Per-key mode. Measured: after any hardware effect, per-key writes stay
     invisible until this is sent (the SDK sends it when effType == 0)."""
@@ -63,8 +64,8 @@ def kb_colors(pairs):
     out = []
     for i in range(0, len(pairs), KEYS_PER_PACKET):
         body = []
-        for kid, (r, g, b) in pairs[i:i + KEYS_PER_PACKET]:
-            body += [kid + 1, r, g, b]        # ids are sent 1-based
+        for kid, (r, g, b) in pairs[i : i + KEYS_PER_PACKET]:
+            body += [kid + 1, r, g, b]  # ids are sent 1-based
         out.append(_kb(0x8C, 0x02, 0x00, *body))
         out.append(_kb(0x8C, 0x13))
     return out
@@ -83,6 +84,7 @@ def kb_brightness(percent):
 
 
 # ---- chassis --------------------------------------------------------------
+
 
 def _control(kind, target=(0x00, 0xFF)):
     return _elc(0x03, 0x21, 0x00, kind, *target)
@@ -147,19 +149,21 @@ def elc_power(rgb, effect=None, index=POWER_INDEX):
     the controller takes 64 ms per command). Static color measured at 13:50;
     an effect (pulse/morph) reuses the same frame, not camera-verified."""
     r, g, b = rgb
-    color_set = (_elc(0x03, 0x24, 0x00, 0x07, 0xD0, 0x00, 0xFA, r, g, b)
-                  if effect is None or effect["name"] == "static"
-                  else _color_set(v4_actions(effect)))
+    color_set = (
+        _elc(0x03, 0x24, 0x00, 0x07, 0xD0, 0x00, 0xFA, r, g, b)
+        if effect is None or effect["name"] == "static"
+        else _color_set(v4_actions(effect))
+    )
     out = [_control(0x03)]
     for state in POWER_STATES:
         out += [
-            _elc(0x03, 0x22, 0x00, 0x04, 0x00, state),     # remove
-            _elc(0x03, 0x22, 0x00, 0x01, 0x00, state),     # start
+            _elc(0x03, 0x22, 0x00, 0x04, 0x00, state),  # remove
+            _elc(0x03, 0x22, 0x00, 0x01, 0x00, state),  # start
             _elc(0x03, 0x23, 0x01, 0x00, 0x01, index),
             color_set,
-            _elc(0x03, 0x22, 0x00, 0x02, 0x00, state),     # finish + save
+            _elc(0x03, 0x22, 0x00, 0x02, 0x00, state),  # finish + save
         ]
-    out.append(_control(0x05))                            # play
+    out.append(_control(0x05))  # play
     return out
 
 
@@ -175,7 +179,7 @@ def scale(rgb, percent):
 # OUTPUT report id 0x02; 9 bytes on the wire (v2, 4-bit color) or 12 (v3).
 LEGACY_REPORT_ID = 0x02
 LEGACY_V2_SIZE, LEGACY_V3_SIZE = 9, 12
-LEGACY_READY = 0x10             # status byte 0 after 02 06 (0x11 busy, 0x12 unknown command)
+LEGACY_READY = 0x10  # status byte 0 after 02 06 (0x11 busy, 0x12 unknown command)
 
 
 def _legacy(size, *payload):
@@ -199,12 +203,11 @@ def legacy_colors(size, pairs):
     (02 04), the chain counting up from 1; finally update (02 05)."""
     out = []
     for chain, (mask, (r, g, b)) in enumerate(pairs, start=1):
-        if size == LEGACY_V2_SIZE:      # 4 bits per channel, two colors packed in 3 bytes
+        if size == LEGACY_V2_SIZE:  # 4 bits per channel, two colors packed in 3 bytes
             color = [(r & 0xF0) | (g >> 4), b & 0xF0, 0]
         else:
             color = [r, g, b, 0, 0, 0]
-        out.append(_legacy(size, 0x03, chain & 0xFF, (mask >> 16) & 0xFF, (mask >> 8) & 0xFF,
-                           mask & 0xFF, *color))
+        out.append(_legacy(size, 0x03, chain & 0xFF, (mask >> 16) & 0xFF, (mask >> 8) & 0xFF, mask & 0xFF, *color))
         out.append(_legacy(size, 0x04))
     out.append(_legacy(size, 0x05))
     return out

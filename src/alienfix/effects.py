@@ -7,12 +7,13 @@ command, so chassis zones only get the controller's own actions (protocol.py).
 Pure functions: (key positions, time, parameters) -> {id: (r, g, b)}.
 Positions come from the chassis template (u, v in key units).
 """
+
 import colorsys
 import math
 import random
 
 SOFTWARE = ("rainbow", "spectrum", "morph", "starlight", "gradient")
-ANIMATED = {"rainbow", "spectrum", "morph", "starlight"}      # gradient is static
+ANIMATED = {"rainbow", "spectrum", "morph", "starlight"}  # gradient is static
 
 
 def period(tempo):
@@ -21,7 +22,7 @@ def period(tempo):
 
 
 def _mix(c1, c2, k):
-    return tuple(int(round(a + (b - a) * k)) for a, b in zip(c1, c2))
+    return tuple(round(a + (b - a) * k) for a, b in zip(c1, c2, strict=True))
 
 
 def _hue(h):
@@ -36,13 +37,13 @@ def rainbow(pos, width, t, tempo, c1=None, c2=None):
 
 def spectrum(pos, width, t, tempo, c1=None, c2=None):
     color = _hue(t / (2 * period(tempo)))
-    return {i: color for i in pos}
+    return dict.fromkeys(pos, color)
 
 
 def morph(pos, width, t, tempo, c1, c2):
     k = 0.5 - 0.5 * math.cos(2 * math.pi * t / (2 * period(tempo)))
     color = _mix(c1, c2, k)
-    return {i: color for i in pos}
+    return dict.fromkeys(pos, color)
 
 
 def gradient(pos, width, t, tempo, c1, c2):
@@ -56,14 +57,14 @@ class Starlight:
 
     def __init__(self, seed=None):
         self.rng = random.Random(seed)
-        self.stars = {}            # id -> start time
+        self.stars = {}  # id -> start time
         self.last = None
 
     def __call__(self, pos, width, t, tempo, c1, c2):
         ids = list(pos)
         if self.last is None:
             self.last = t
-        rate = len(ids) / (2 * period(tempo))          # every key twinkles about once per 2 periods
+        rate = len(ids) / (2 * period(tempo))  # every key twinkles about once per 2 periods
         for _ in range(int(rate * (t - self.last) + self.rng.random())):
             self.stars[self.rng.choice(ids)] = t
         self.last = t
@@ -77,8 +78,9 @@ class Starlight:
 
 
 def renderer(name):
-    return {"rainbow": rainbow, "spectrum": spectrum, "morph": morph,
-            "gradient": gradient, "starlight": Starlight()}[name]
+    return {"rainbow": rainbow, "spectrum": spectrum, "morph": morph, "gradient": gradient, "starlight": Starlight()}[
+        name
+    ]
 
 
 # Software look-alikes of the firmware effects, for a client that paints over
@@ -95,32 +97,31 @@ def _band(x):
 
 def breathing(pos, width, t, tempo, c1, c2=None):
     color = _mix(BLACK, c1, 0.5 - 0.5 * math.cos(2 * math.pi * t / period(tempo)))
-    return {i: color for i in pos}
+    return dict.fromkeys(pos, color)
 
 
 def pulse(pos, width, t, tempo, c1, c2=None):
-    color = _mix(c1, BLACK, (t / period(tempo)) % 1.0)        # flash, then fade
-    return {i: color for i in pos}
+    color = _mix(c1, BLACK, (t / period(tempo)) % 1.0)  # flash, then fade
+    return dict.fromkeys(pos, color)
 
 
 def mixpulse(pos, width, t, tempo, c1, c2):
     color = c1 if (t / period(tempo)) % 1.0 < 0.5 else c2
-    return {i: color for i in pos}
+    return dict.fromkeys(pos, color)
 
 
 def wave(pos, width, t, tempo, c1, c2):
-    x0 = ((t / period(tempo)) % 1.0) * (width + 4) - 2          # band enters left, leaves right
+    x0 = ((t / period(tempo)) % 1.0) * (width + 4) - 2  # band enters left, leaves right
     return {i: _mix(c2, c1, _band((u - x0) / 2)) for i, (u, v) in pos.items()}
 
 
 def nightrider(pos, width, t, tempo, c1, c2=None):
     k = (t / period(tempo)) % 2.0
-    x0 = (k if k < 1 else 2 - k) * width                          # left to right and back
+    x0 = (k if k < 1 else 2 - k) * width  # left to right and back
     return {i: _mix(BLACK, c1, _band((u - x0) / 1.5)) for i, (u, v) in pos.items()}
 
 
-LOOKALIKE = {"breathing": breathing, "wave": wave, "pulse": pulse,
-             "mixpulse": mixpulse, "nightrider": nightrider}
+LOOKALIKE = {"breathing": breathing, "wave": wave, "pulse": pulse, "mixpulse": mixpulse, "nightrider": nightrider}
 
 
 def any_renderer(name):
@@ -131,16 +132,16 @@ def any_renderer(name):
 # Typing ripple: a ring from each pressed key, painted over what the keyboard
 # shows. While it is on, the whole keyboard is rendered here, firmware effects
 # included (as look-alikes): per-key frames replace the firmware effect.
-RIPPLE_SPEED = 10       # u / s, default
+RIPPLE_SPEED = 10  # u / s, default
 RIPPLE_SPEEDS = (2, 40)  # u / s, accepted range
-RIPPLE_WIDTH = 1.3      # u, full width of the ring
-RIPPLE_REACH = 9.0      # u traveled before the ring has faded out
+RIPPLE_WIDTH = 1.3  # u, full width of the ring
+RIPPLE_REACH = 9.0  # u traveled before the ring has faded out
 RIPPLE_MAX = 32
-RIPPLE_UNDER = ("effect", "color")   # what shows under the rings
+RIPPLE_UNDER = ("effect", "color")  # what shows under the rings
 
 
 class Ripple:
-    __slots__ = ("u", "v", "t0", "color", "speed")
+    __slots__ = ("color", "speed", "t0", "u", "v")
 
     def __init__(self, u, v, t0, color, speed=RIPPLE_SPEED):
         self.u, self.v, self.t0, self.color, self.speed = u, v, t0, tuple(color), speed

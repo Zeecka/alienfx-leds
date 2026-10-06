@@ -7,6 +7,7 @@ keyboard. External keyboards are never opened. A press becomes a key name
 and then a position on the keyboard; the code is not stored, logged or sent
 anywhere. No grab: other programs get every key as usual.
 """
+
 import logging
 import os
 import re
@@ -20,20 +21,90 @@ log = logging.getLogger("alienfixd.keys")
 
 INPUT_HEADER = "/usr/include/linux/input-event-codes.h"
 FALLBACK_EVDEV = {
-    "ESC": 1, "1": 2, "2": 3, "3": 4, "4": 5, "5": 6, "6": 7, "7": 8, "8": 9,
-    "9": 10, "0": 11, "MINUS": 12, "EQUAL": 13, "BACKSPACE": 14, "TAB": 15,
-    "Q": 16, "W": 17, "E": 18, "R": 19, "T": 20, "Y": 21, "U": 22, "I": 23,
-    "O": 24, "P": 25, "LEFTBRACE": 26, "RIGHTBRACE": 27, "ENTER": 28,
-    "LEFTCTRL": 29, "A": 30, "S": 31, "D": 32, "F": 33, "G": 34, "H": 35,
-    "J": 36, "K": 37, "L": 38, "SEMICOLON": 39, "APOSTROPHE": 40, "GRAVE": 41,
-    "LEFTSHIFT": 42, "BACKSLASH": 43, "Z": 44, "X": 45, "C": 46, "V": 47,
-    "B": 48, "N": 49, "M": 50, "COMMA": 51, "DOT": 52, "SLASH": 53,
-    "RIGHTSHIFT": 54, "LEFTALT": 56, "SPACE": 57, "CAPSLOCK": 58, "F1": 59,
-    "F2": 60, "F3": 61, "F4": 62, "F5": 63, "F6": 64, "F7": 65, "F8": 66,
-    "F9": 67, "F10": 68, "102ND": 86, "F11": 87, "F12": 88, "RIGHTCTRL": 97,
-    "RIGHTALT": 100, "HOME": 102, "UP": 103, "LEFT": 105, "RIGHT": 106,
-    "END": 107, "DOWN": 108, "DELETE": 111, "MUTE": 113, "VOLUMEDOWN": 114,
-    "VOLUMEUP": 115, "LEFTMETA": 125, "MICMUTE": 248,
+    "ESC": 1,
+    "1": 2,
+    "2": 3,
+    "3": 4,
+    "4": 5,
+    "5": 6,
+    "6": 7,
+    "7": 8,
+    "8": 9,
+    "9": 10,
+    "0": 11,
+    "MINUS": 12,
+    "EQUAL": 13,
+    "BACKSPACE": 14,
+    "TAB": 15,
+    "Q": 16,
+    "W": 17,
+    "E": 18,
+    "R": 19,
+    "T": 20,
+    "Y": 21,
+    "U": 22,
+    "I": 23,
+    "O": 24,
+    "P": 25,
+    "LEFTBRACE": 26,
+    "RIGHTBRACE": 27,
+    "ENTER": 28,
+    "LEFTCTRL": 29,
+    "A": 30,
+    "S": 31,
+    "D": 32,
+    "F": 33,
+    "G": 34,
+    "H": 35,
+    "J": 36,
+    "K": 37,
+    "L": 38,
+    "SEMICOLON": 39,
+    "APOSTROPHE": 40,
+    "GRAVE": 41,
+    "LEFTSHIFT": 42,
+    "BACKSLASH": 43,
+    "Z": 44,
+    "X": 45,
+    "C": 46,
+    "V": 47,
+    "B": 48,
+    "N": 49,
+    "M": 50,
+    "COMMA": 51,
+    "DOT": 52,
+    "SLASH": 53,
+    "RIGHTSHIFT": 54,
+    "LEFTALT": 56,
+    "SPACE": 57,
+    "CAPSLOCK": 58,
+    "F1": 59,
+    "F2": 60,
+    "F3": 61,
+    "F4": 62,
+    "F5": 63,
+    "F6": 64,
+    "F7": 65,
+    "F8": 66,
+    "F9": 67,
+    "F10": 68,
+    "102ND": 86,
+    "F11": 87,
+    "F12": 88,
+    "RIGHTCTRL": 97,
+    "RIGHTALT": 100,
+    "HOME": 102,
+    "UP": 103,
+    "LEFT": 105,
+    "RIGHT": 106,
+    "END": 107,
+    "DOWN": 108,
+    "DELETE": 111,
+    "MUTE": 113,
+    "VOLUMEDOWN": 114,
+    "VOLUMEUP": 115,
+    "LEFTMETA": 125,
+    "MICMUTE": 248,
 }
 
 
@@ -41,7 +112,7 @@ def load_evdev_names(path=INPUT_HEADER):
     """Return {evdev code: name} from the kernel header, or the fallback."""
     names = {}
     try:
-        text = Path(path).read_text()
+        text = Path(path).read_text(encoding="utf-8")
     except OSError:
         text = ""
     for m in re.finditer(r"^#define\s+KEY_(\w+)\s+(0x[0-9a-fA-F]+|\d+)\b", text, re.M):
@@ -73,10 +144,11 @@ def builtin_keyboards(usb_id, sys_root="/sys"):
     for ev in sorted(Path(sys_root, "class/input").glob("event*")):
         dev = ev / "device"
         try:
-            bus = int((dev / "id/bustype").read_text(), 16)
-            vid_pid = "%04x:%04x" % (int((dev / "id/vendor").read_text(), 16),
-                                     int((dev / "id/product").read_text(), 16))
-            keys = (dev / "capabilities/key").read_text()
+            bus = int((dev / "id/bustype").read_text(encoding="utf-8"), 16)
+            vendor = int((dev / "id/vendor").read_text(encoding="utf-8"), 16)
+            product = int((dev / "id/product").read_text(encoding="utf-8"), 16)
+            vid_pid = f"{vendor:04x}:{product:04x}"
+            keys = (dev / "capabilities/key").read_text(encoding="utf-8")
         except (OSError, ValueError):
             continue
         if not _has_keys(keys, LETTERS):
@@ -89,9 +161,11 @@ def builtin_keyboards(usb_id, sys_root="/sys"):
 def presses(data):
     """Key codes pressed in a buffer of input events (auto-repeat ignored)."""
     n = len(data) // EVENT.size
-    return [code for _s, _us, typ, code, value in
-            (EVENT.unpack_from(data, i * EVENT.size) for i in range(n))
-            if typ == EV_KEY and value == PRESS]
+    return [
+        code
+        for _s, _us, typ, code, value in (EVENT.unpack_from(data, i * EVENT.size) for i in range(n))
+        if typ == EV_KEY and value == PRESS
+    ]
 
 
 class KeyWatcher:
@@ -123,7 +197,7 @@ class KeyWatcher:
         fds, scanned = {}, 0.0
         try:
             while not self.stopping.is_set():
-                if time.monotonic() - scanned > RESCAN_S:       # hot-plug, resume
+                if time.monotonic() - scanned > RESCAN_S:  # hot-plug, resume
                     scanned = time.monotonic()
                     for path in set(self.find(self.usb_id)) - set(fds.values()):
                         try:
@@ -141,7 +215,7 @@ class KeyWatcher:
                         continue
                     except OSError:
                         data = b""
-                    if not data:                                 # device gone
+                    if not data:  # device gone
                         os.close(fd)
                         fds.pop(fd)
                         continue

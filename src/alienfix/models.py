@@ -23,6 +23,7 @@ The model is chosen by the user (SelectModel), else from the DMI product
 name, else from the USB id of a legacy controller. When nothing matches, a generic model is built from the
 controllers actually present, with neutral zone names.
 """
+
 import json
 import re
 from pathlib import Path
@@ -68,8 +69,12 @@ def check(m):
                 raise Invalid(f"{m['id']}/{z['id']}: index")
         if z.get("group", "chassis") not in GROUPS:
             raise Invalid(f"{m['id']}/{z['id']}: group")
-        if not isinstance(z.get("label"), str) or not 0 < len(z["label"]) <= 60 \
-                or not isinstance(z.get("note", ""), str) or len(z.get("note", "")) > 200:
+        if (
+            not isinstance(z.get("label"), str)
+            or not 0 < len(z["label"]) <= 60
+            or not isinstance(z.get("note", ""), str)
+            or len(z.get("note", "")) > 200
+        ):
             raise Invalid(f"{m['id']}/{z['id']}: label or note")
         if z.get("role") not in (None, "power"):
             raise Invalid(f"{m['id']}/{z['id']}: role")
@@ -85,7 +90,7 @@ def check(m):
 def load(directory):
     out = {}
     for p in sorted(Path(directory).glob("*.json")):
-        m = check(json.loads(p.read_text()))
+        m = check(json.loads(p.read_text(encoding="utf-8")))
         out[m["id"]] = m
     return out
 
@@ -100,17 +105,49 @@ def generic(present, wmi_zones=0):
     """A model for an unknown machine, from the controllers that are present."""
     zones = []
     if present.get("elc"):
-        zones += [{"id": f"elc{i}", "label": f"Light {i} (AW-ELC)", "controller": "elc", "index": i,
-                   "group": "chassis", "verified": False} for i in range(4)]
+        zones += [
+            {
+                "id": f"elc{i}",
+                "label": f"Light {i} (AW-ELC)",
+                "controller": "elc",
+                "index": i,
+                "group": "chassis",
+                "verified": False,
+            }
+            for i in range(4)
+        ]
     if present.get("legacy"):
-        zones += [{"id": f"fx{i}", "label": f"Light bit {i} (AlienFX)", "controller": "legacy",
-                   "mask": 1 << i, "group": "chassis", "verified": False} for i in range(8)]
-    zones += [{"id": f"wmi{i}", "label": f"Zone {i} (alienware-wmi)", "controller": "wmi", "index": i,
-               "group": "chassis", "verified": False} for i in range(wmi_zones)]
-    return {"id": "generic", "name": "Unknown model (generic)", "dmi_product": [], "support": "untested",
-            "source": "Built from the controllers found on this machine; zone names are neutral.",
-            "keyboard": {"type": "per-key" if present.get("keyboard") else "none"},
-            "zones": zones}
+        zones += [
+            {
+                "id": f"fx{i}",
+                "label": f"Light bit {i} (AlienFX)",
+                "controller": "legacy",
+                "mask": 1 << i,
+                "group": "chassis",
+                "verified": False,
+            }
+            for i in range(8)
+        ]
+    zones += [
+        {
+            "id": f"wmi{i}",
+            "label": f"Zone {i} (alienware-wmi)",
+            "controller": "wmi",
+            "index": i,
+            "group": "chassis",
+            "verified": False,
+        }
+        for i in range(wmi_zones)
+    ]
+    return {
+        "id": "generic",
+        "name": "Unknown model (generic)",
+        "dmi_product": [],
+        "support": "untested",
+        "source": "Built from the controllers found on this machine; zone names are neutral.",
+        "keyboard": {"type": "per-key" if present.get("keyboard") else "none"},
+        "zones": zones,
+    }
 
 
 def pick(models, dmi, forced=None, usb=()):
@@ -129,11 +166,26 @@ def pick(models, dmi, forced=None, usb=()):
 
 def public(m):
     """What GetLayout serves about the model (zones carry their effect list)."""
-    return {"id": m["id"], "name": m["name"], "support": m["support"], "source": m.get("source", ""),
-            "keyboard": m.get("keyboard", {"type": "none"})["type"]}
+    return {
+        "id": m["id"],
+        "name": m["name"],
+        "support": m["support"],
+        "source": m.get("source", ""),
+        "keyboard": m.get("keyboard", {"type": "none"})["type"],
+    }
 
 
 def public_zones(m):
-    return [{"id": z["id"], "label": z["label"], "group": z.get("group", "chassis"),
-             "verified": bool(z.get("verified")), "controller": z["controller"], "role": z.get("role"),
-             "note": z.get("note", ""), "effects": list(zone_effects(z))} for z in m["zones"]]
+    return [
+        {
+            "id": z["id"],
+            "label": z["label"],
+            "group": z.get("group", "chassis"),
+            "verified": bool(z.get("verified")),
+            "controller": z["controller"],
+            "role": z.get("role"),
+            "note": z.get("note", ""),
+            "effects": list(zone_effects(z)),
+        }
+        for z in m["zones"]
+    ]

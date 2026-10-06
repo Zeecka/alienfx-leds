@@ -1,20 +1,22 @@
 """Unit tests without hardware: exact bytes of measured sequences, and the
 validation boundary. Run: python3 -m unittest discover -s tests"""
+
+import itertools
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import ClassVar
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from alienfix import protocol, validate  # noqa: E402
-from alienfix.state import State  # noqa: E402
-from alienfix import devices, models  # noqa: E402
+from alienfix import devices, models, protocol, validate
+from alienfix.state import State
 
-IDS = {i for ids in json.loads((ROOT / "data/profiles/alienware-m15-r7-azerty.json").read_text())["keys"].values()
-       for i in ids}
+M15_PROFILE = ROOT / "data/profiles/alienware-m15-r7-azerty.json"
+IDS = {i for ids in json.loads(M15_PROFILE.read_text(encoding="utf-8"))["keys"].values() for i in ids}
 ZONE_IDS = ["power", "lid", "rear0", "rear1"]
 
 
@@ -27,9 +29,9 @@ class Protocol(unittest.TestCase):
     def test_colors_are_one_based_15_per_packet_with_loop(self):
         pairs = [(i, (i, 0, 255)) for i in range(20)]
         out = protocol.kb_colors(pairs)
-        self.assertEqual(len(out), 4)                      # 2 ColorSet + 2 Loop
+        self.assertEqual(len(out), 4)  # 2 ColorSet + 2 Loop
         self.assertEqual(out[0][:7].hex(" "), "cc 8c 02 00 01 00 00")
-        self.assertEqual(out[0][4 + 14 * 4], 15)           # 15th entry carries id 14 + 1
+        self.assertEqual(out[0][4 + 14 * 4], 15)  # 15th entry carries id 14 + 1
         self.assertEqual(out[1][:3].hex(" "), "cc 8c 13")
         self.assertTrue(all(len(r) == 64 for r in out))
 
@@ -37,7 +39,7 @@ class Protocol(unittest.TestCase):
         w = protocol.kb_effect("wave", 5, (1, 2, 3), (4, 5, 6))
         self.assertEqual(w[:16].hex(" "), "cc 80 03 05 00 00 01 01 01 01 01 02 03 04 05 06")
         b = protocol.kb_effect("breathing", 7, (1, 2, 3), (4, 5, 6))
-        self.assertEqual(b[9], 0)                          # one color -> n-1 = 0
+        self.assertEqual(b[9], 0)  # one color -> n-1 = 0
 
     def test_brightness_scale(self):
         self.assertEqual(protocol.kb_brightness(100)[4], 255)
@@ -58,13 +60,13 @@ class Protocol(unittest.TestCase):
         self.assertEqual(len(cmds), 2)
         self.assertEqual(cmds[0][6:10].hex(" "), "00 02 00 01")
         for r in out:
-            self.assertNotEqual(r[1:3], b"\x03\xff")       # 0xFF = flash erase per OpenRGB
+            self.assertNotEqual(r[1:3], b"\x03\xff")  # 0xFF = flash erase per OpenRGB
 
 
 class Validation(unittest.TestCase):
     def test_rejects_unknown_ids_and_out_of_range(self):
         with self.assertRaises(validate.Invalid):
-            validate.key_colors([(33, 1, 2, 3)], IDS)       # 33 has no LED
+            validate.key_colors([(33, 1, 2, 3)], IDS)  # 33 has no LED
         with self.assertRaises(validate.Invalid):
             validate.key_colors([(200, 1, 2, 3)], IDS)
         with self.assertRaises(validate.Invalid):
@@ -81,8 +83,10 @@ class Validation(unittest.TestCase):
                 validate.effect(bad, 5, (0, 0, 0), (0, 0, 0))
         with self.assertRaises(validate.Invalid):
             validate.zone("fan", ZONE_IDS)
-        name = "".join(["w", "a", "v", "e"])               # equal, but not our object
-        self.assertIs(validate.effect(name, 5, (0, 0, 0), (0, 0, 0))["name"], validate.EFFECTS[validate.EFFECTS.index("wave")])
+        name = "".join(["w", "a", "v", "e"])  # equal, but not our object
+        self.assertIs(
+            validate.effect(name, 5, (0, 0, 0), (0, 0, 0))["name"], validate.EFFECTS[validate.EFFECTS.index("wave")]
+        )
 
     def test_tempo_and_percent_bounds(self):
         for t in (0, 31, True):
@@ -96,8 +100,16 @@ class Persistence(unittest.TestCase):
     def test_corrupt_or_hostile_state_file_is_ignored(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "state.json"
-            p.write_text(json.dumps({"brightness": 999, "zones": {"fan": [1, 2, 3], "lid": [1, 2, 300]},
-                                     "keyboard": {"keys": {"33": [1, 1, 1], "0": [5, 5, 5], "x": 1}}}))
+            p.write_text(
+                json.dumps(
+                    {
+                        "brightness": 999,
+                        "zones": {"fan": [1, 2, 3], "lid": [1, 2, 300]},
+                        "keyboard": {"keys": {"33": [1, 1, 1], "0": [5, 5, 5], "x": 1}},
+                    }
+                ),
+                encoding="utf-8",
+            )
             s = State(p, IDS, ZONE_IDS)
             self.assertEqual(s.data["brightness"], 80)
             self.assertNotIn("fan", s.data["zones"])
@@ -113,6 +125,7 @@ if __name__ == "__main__":
 
 class Profiles(unittest.TestCase):
     from alienfix import profile as P
+
     T = P.load_templates(ROOT / "data/chassis")
 
     def ok(self, **kw):
@@ -120,16 +133,25 @@ class Profiles(unittest.TestCase):
         return {**base, **kw}
 
     def test_shipped_profile_is_valid_and_complete(self):
-        p = self.P.validate(json.loads((ROOT / "data/profiles/alienware-m15-r7-azerty.json").read_text()), self.T)
+        p = self.P.validate(json.loads(M15_PROFILE.read_text(encoding="utf-8")), self.T)
         self.assertEqual(len(p["keys"]), 85)
         self.assertNotIn("SPACE", p["keys"])
 
     def test_hostile_profiles_are_rejected(self):
-        bad = [self.ok(chassis="../../etc/passwd"), self.ok(name=""), self.ok(name="x" * 61),
-               self.ok(name="a\nb"), self.ok(keys={}), self.ok(keys={"NOTAKEY": [1]}),
-               self.ok(keys={"ESC": [255]}), self.ok(keys={"ESC": [-1]}), self.ok(keys={"ESC": [True]}),
-               self.ok(keys={"ESC": [1], "F1": [1]}), self.ok(keys={"ESC": [1, 2, 3, 4, 5]}),
-               self.ok(method="exec")]
+        bad = [
+            self.ok(chassis="../../etc/passwd"),
+            self.ok(name=""),
+            self.ok(name="x" * 61),
+            self.ok(name="a\nb"),
+            self.ok(keys={}),
+            self.ok(keys={"NOTAKEY": [1]}),
+            self.ok(keys={"ESC": [255]}),
+            self.ok(keys={"ESC": [-1]}),
+            self.ok(keys={"ESC": [True]}),
+            self.ok(keys={"ESC": [1], "F1": [1]}),
+            self.ok(keys={"ESC": [1, 2, 3, 4, 5]}),
+            self.ok(method="exec"),
+        ]
         for b in bad:
             with self.assertRaises(validate.Invalid, msg=repr(b)):
                 self.P.validate(b, self.T)
@@ -148,7 +170,7 @@ class Profiles(unittest.TestCase):
             for y, ks in rows.items():
                 ks.sort(key=lambda k: k["x"])
                 self.assertAlmostEqual(sum(k["w"] for k in ks), t["width"], msg=(t["id"], y))
-                for a, b in zip(ks, ks[1:]):
+                for a, b in itertools.pairwise(ks):
                     self.assertAlmostEqual(a["x"] + a["w"], b["x"], msg=(t["id"], a["name"]))
                 self.assertEqual(len({k["h"] for k in ks}), 1)
 
@@ -162,7 +184,8 @@ class Profiles(unittest.TestCase):
 
 class Effects(unittest.TestCase):
     from alienfix import effects as E
-    POS = {0: (0.5, 0.25), 1: (8.0, 2.0), 2: (15.5, 5.0)}
+
+    POS: ClassVar[dict] = {0: (0.5, 0.25), 1: (8.0, 2.0), 2: (15.5, 5.0)}
 
     def test_software_renderers_stay_in_range_and_cover_every_key(self):
         for name in self.E.SOFTWARE:
@@ -179,8 +202,8 @@ class Effects(unittest.TestCase):
         self.assertEqual(self.E.morph(self.POS, 16, p, 5, (255, 0, 0), (0, 0, 255))[0], (0, 0, 255))
         a = self.E.rainbow(self.POS, 16, 1.0, 5)
         b = self.E.rainbow(self.POS, 16, 1.0 + p, 5)
-        for k in a:                                   # equal up to float rounding
-            self.assertTrue(all(abs(x - y) <= 1 for x, y in zip(a[k], b[k])), (a[k], b[k]))
+        for k in a:  # equal up to float rounding
+            self.assertTrue(all(abs(x - y) <= 1 for x, y in zip(a[k], b[k], strict=True)), (a[k], b[k]))
 
     def test_gradient_goes_left_to_right(self):
         f = self.E.gradient(self.POS, 16, 0, 5, (255, 0, 0), (0, 0, 255))
@@ -199,9 +222,11 @@ class Effects(unittest.TestCase):
                     self.assertTrue(all(isinstance(x, int) and 0 <= x <= 255 for x in c), (name, c))
 
     def test_wave_lookalike_loops_with_the_measured_period(self):
-        p = self.E.period(4)                                   # measured: 0.6 s x tempo
-        self.assertEqual(self.E.wave(self.POS, 16, 1.0, 4, (255, 0, 0), (0, 0, 255)),
-                         self.E.wave(self.POS, 16, 1.0 + p, 4, (255, 0, 0), (0, 0, 255)))
+        p = self.E.period(4)  # measured: 0.6 s x tempo
+        self.assertEqual(
+            self.E.wave(self.POS, 16, 1.0, 4, (255, 0, 0), (0, 0, 255)),
+            self.E.wave(self.POS, 16, 1.0 + p, 4, (255, 0, 0), (0, 0, 255)),
+        )
 
 
 class Ripple(unittest.TestCase):
@@ -209,7 +234,7 @@ class Ripple(unittest.TestCase):
     from alienfix import keycodes as K
 
     def test_speed_sets_where_the_ring_is(self):
-        E = self.E                                   # after 0.5 s: 2 keys out at 4 u/s, 5 at 10 u/s
+        E = self.E  # after 0.5 s: 2 keys out at 4 u/s, 5 at 10 u/s
         self.assertGreater(E.ripple_intensity(2.0, 0.5, speed=4), 0.5)
         self.assertEqual(E.ripple_intensity(5.0, 0.5, speed=4), 0.0)
         self.assertGreater(E.ripple_intensity(5.0, 0.5, speed=10), 0.4)
@@ -227,16 +252,21 @@ class Ripple(unittest.TestCase):
         pos = {0: (0.0, 0.0), 1: (12.0, 0.0)}
         base = E.gradient(pos, 12, 0, 5, (255, 0, 0), (0, 0, 255))
         out = E.ripple_over(base, [E.Ripple(0.0, 0.0, 0.0, (0, 255, 0), speed=10)], 0.0, pos)
-        self.assertEqual(out[0], (0, 255, 0))              # under the ring: the ripple color
-        self.assertEqual(out[1], (0, 0, 255))              # elsewhere: the effect untouched
+        self.assertEqual(out[0], (0, 255, 0))  # under the ring: the ripple color
+        self.assertEqual(out[1], (0, 0, 255))  # elsewhere: the effect untouched
 
     def test_ripple_validation(self):
         r = validate.ripple(True, (1, 2, 3), 12, "color", (4, 5, 6))
-        self.assertEqual(r, {"enabled": True, "color": [1, 2, 3], "speed": 12, "under": "color",
-                             "background": [4, 5, 6]})
-        for bad in ((1, (1, 2, 3), 12, "effect", (0, 0, 0)), (True, (1, 2, 3), 1, "effect", (0, 0, 0)),
-                    (True, (1, 2, 3), 41, "effect", (0, 0, 0)), (True, (1, 2, 3), 10, "x", (0, 0, 0)),
-                    (True, (1, 2, 300), 10, "effect", (0, 0, 0))):
+        self.assertEqual(
+            r, {"enabled": True, "color": [1, 2, 3], "speed": 12, "under": "color", "background": [4, 5, 6]}
+        )
+        for bad in (
+            (1, (1, 2, 3), 12, "effect", (0, 0, 0)),
+            (True, (1, 2, 3), 1, "effect", (0, 0, 0)),
+            (True, (1, 2, 3), 41, "effect", (0, 0, 0)),
+            (True, (1, 2, 3), 10, "x", (0, 0, 0)),
+            (True, (1, 2, 300), 10, "effect", (0, 0, 0)),
+        ):
             with self.assertRaises(validate.Invalid):
                 validate.ripple(*bad)
 
@@ -249,14 +279,17 @@ class Ripple(unittest.TestCase):
             s.save()
             self.assertEqual(State(p, IDS, ZONE_IDS).data["ripple"]["speed"], 25)
             self.assertTrue(State(p, IDS, ZONE_IDS).data["ripple"]["enabled"])
-            p.write_text(json.dumps({"ripple": {"enabled": True, "speed": 99}}))     # hostile: ignored
+            p.write_text(json.dumps({"ripple": {"enabled": True, "speed": 99}}), encoding="utf-8")  # hostile: ignored
             self.assertFalse(State(p, IDS, ZONE_IDS).data["ripple"]["enabled"])
 
     def test_only_key_presses_are_kept(self):
         K = self.K
-        ev = lambda t, c, v: K.EVENT.pack(0, 0, t, c, v)          # noqa: E731
+
+        def ev(typ, code, value):
+            return K.EVENT.pack(0, 0, typ, code, value)
+
         data = ev(4, 4, 30) + ev(1, 30, 1) + ev(0, 0, 0) + ev(1, 30, 2) + ev(1, 30, 0) + ev(1, 57, 1)
-        self.assertEqual(K.presses(data), [30, 57])               # no repeat, no release, no scan code
+        self.assertEqual(K.presses(data), [30, 57])  # no repeat, no release, no scan code
 
     def test_only_the_builtin_keyboard_is_read(self):
         K = self.K
@@ -267,14 +300,14 @@ class Ripple(unittest.TestCase):
             (d / "id").mkdir(parents=True)
             (d / "capabilities").mkdir()
             for name, v in (("bustype", bus), ("vendor", vid), ("product", pid)):
-                (d / "id" / name).write_text("%04x\n" % v)
-            (d / "capabilities/key").write_text("%x 0\n" % keys if keys > 1 << 64 else "%x\n" % keys)
+                (d / "id" / name).write_text(f"{v:04x}\n", encoding="utf-8")
+            (d / "capabilities/key").write_text(f"{keys:x} 0\n" if keys > 1 << 64 else f"{keys:x}\n", encoding="utf-8")
 
         with tempfile.TemporaryDirectory() as root:
-            dev(root, 2, 0x11, 1, 1, letters)                     # laptop i8042 keyboard
-            dev(root, 10, 0x03, 0x0D62, 0xDABC, letters)          # the per-key lighting keyboard
-            dev(root, 11, 0x03, 0x046D, 0xC31C, letters)          # external USB keyboard
-            dev(root, 12, 0x03, 0x0D62, 0xDABC, 1 << 113)         # same device, media keys only
+            dev(root, 2, 0x11, 1, 1, letters)  # laptop i8042 keyboard
+            dev(root, 10, 0x03, 0x0D62, 0xDABC, letters)  # the per-key lighting keyboard
+            dev(root, 11, 0x03, 0x046D, 0xC31C, letters)  # external USB keyboard
+            dev(root, 12, 0x03, 0x0D62, 0xDABC, 1 << 113)  # same device, media keys only
             self.assertEqual(K.builtin_keyboards("0d62:dabc", root), ["/dev/input/event10", "/dev/input/event2"])
             self.assertEqual(K.builtin_keyboards(None, root), ["/dev/input/event2"])
 
@@ -297,18 +330,30 @@ class ZoneEffects(unittest.TestCase):
 
     def test_power_static_unchanged_and_effect_used_for_every_state(self):
         base = protocol.elc_power((10, 20, 30))
-        self.assertEqual(base, protocol.elc_power((10, 20, 30), {"name": "static", "tempo": 7,
-                                                                   "c1": (10, 20, 30), "c2": (0, 0, 0)}))
+        self.assertEqual(
+            base, protocol.elc_power((10, 20, 30), {"name": "static", "tempo": 7, "c1": (10, 20, 30), "c2": (0, 0, 0)})
+        )
         fx = protocol.elc_power((10, 20, 30), {"name": "pulse", "tempo": 7, "c1": (10, 20, 30), "c2": (0, 0, 0)})
         self.assertEqual(sum(1 for r in fx if r[2] == 0x24 and r[3] == 1), 6)
 
     def test_hostile_state_file_effect_names_are_ignored(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "state.json"
-            p.write_text(json.dumps({"keyboard": {"mode": "effect", "effect": {
-                "name": "../../x", "tempo": 5, "c1": [1, 1, 1], "c2": [2, 2, 2]}},
-                "zone_effects": {"lid": {"name": "rm", "tempo": 5, "c2": [0, 0, 0]},
-                                 "fan": {"name": "pulse", "tempo": 5, "c2": [0, 0, 0]}}}))
+            p.write_text(
+                json.dumps(
+                    {
+                        "keyboard": {
+                            "mode": "effect",
+                            "effect": {"name": "../../x", "tempo": 5, "c1": [1, 1, 1], "c2": [2, 2, 2]},
+                        },
+                        "zone_effects": {
+                            "lid": {"name": "rm", "tempo": 5, "c2": [0, 0, 0]},
+                            "fan": {"name": "pulse", "tempo": 5, "c2": [0, 0, 0]},
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
             s = State(p, IDS, ZONE_IDS)
             self.assertEqual(s.data["keyboard"]["effect"]["name"], "wave")
             self.assertEqual(s.data["zone_effects"]["lid"]["name"], "static")
@@ -340,15 +385,22 @@ class Models(unittest.TestCase):
         self.assertEqual([z["id"] for z in g["zones"]], ["elc0", "elc1", "elc2", "elc3", "wmi0", "wmi1"])
 
     def test_bad_models_are_rejected(self):
-        ok = {"id": "x", "name": "X", "support": "reported", "keyboard": {"type": "none"},
-              "zones": [{"id": "a", "label": "A", "controller": "elc", "index": 0}]}
+        ok = {
+            "id": "x",
+            "name": "X",
+            "support": "reported",
+            "keyboard": {"type": "none"},
+            "zones": [{"id": "a", "label": "A", "controller": "elc", "index": 0}],
+        }
         models.check(ok)
-        for bad in ({**ok, "support": "sure"},
-                    {**ok, "zones": [{"id": "a", "label": "A", "controller": "elc", "index": 99}]},
-                    {**ok, "zones": [{"id": "a", "label": "A", "controller": "legacy", "mask": 0}]},
-                    {**ok, "zones": [{"id": "a", "label": "A", "controller": "wmi", "index": 0, "role": "power"}]},
-                    {**ok, "keyboard": {"type": "zones"}},
-                    {**ok, "usb": ["187c-0521"]}):
+        for bad in (
+            {**ok, "support": "sure"},
+            {**ok, "zones": [{"id": "a", "label": "A", "controller": "elc", "index": 99}]},
+            {**ok, "zones": [{"id": "a", "label": "A", "controller": "legacy", "mask": 0}]},
+            {**ok, "zones": [{"id": "a", "label": "A", "controller": "wmi", "index": 0, "role": "power"}]},
+            {**ok, "keyboard": {"type": "zones"}},
+            {**ok, "usb": ["187c-0521"]},
+        ):
             with self.assertRaises(validate.Invalid, msg=repr(bad)):
                 models.check(bad)
 
@@ -361,11 +413,11 @@ class Models(unittest.TestCase):
 
 class Descriptors(unittest.TestCase):
     def test_output_report_sizes(self):
-        desc = bytes.fromhex("0600ff0901a101" "0901" "150026ff00" "7508" "9521" "8102" "0901" "9102" "c0")
+        desc = bytes.fromhex("0600ff0901a1010901150026ff0075089521810209019102c0")
         self.assertEqual(devices.output_reports(desc), {0: 33})
         self.assertEqual(devices.classify("0000187C", desc)[0], "elc")
         self.assertIsNone(devices.classify("0000046D", desc)[0])
-        legacy = bytes.fromhex("0600ff0901a101" "8502" "7508" "9508" "0901" "9102" "c0")
+        legacy = bytes.fromhex("0600ff0901a10185027508950809019102c0")
         self.assertEqual(devices.classify("0000187C", legacy), ("legacy", {"size": 9}))
         v3 = legacy.replace(bytes.fromhex("9508"), bytes.fromhex("950b"))
         self.assertEqual(devices.classify("0000187C", v3), ("legacy", {"size": 12}))
@@ -389,6 +441,19 @@ class LegacyAndWmi(unittest.TestCase):
         self.assertEqual(protocol.wmi_value((255, 128, 0)), "0f0800\n")
 
     def test_power_index_is_a_parameter(self):
-        self.assertIn(bytes([0x00, 0x03, 0x23, 0x01, 0x00, 0x01, 0x04]),
-                      [r[:7] for r in protocol.elc_power((1, 2, 3), index=4)])
+        self.assertIn(
+            bytes([0x00, 0x03, 0x23, 0x01, 0x00, 0x01, 0x04]), [r[:7] for r in protocol.elc_power((1, 2, 3), index=4)]
+        )
 
+
+class Packaging(unittest.TestCase):
+    def test_version_is_the_same_in_pyproject_and_the_package(self):
+        if sys.version_info < (3, 11):
+            self.skipTest("tomllib needs Python 3.11")
+        else:
+            import tomllib
+
+            import alienfix
+
+            pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+            self.assertEqual(pyproject["project"]["version"], alienfix.__version__)

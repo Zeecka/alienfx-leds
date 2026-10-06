@@ -12,13 +12,14 @@ Everything a client sends is validated here before it is stored: the
 template must exist, key names must belong to it, ids are integers 0..254
 used once, the name is short printable text that never reaches hardware.
 """
+
 import json
 import re
 from pathlib import Path
 
-from .validate import Invalid       # one error type for the daemon
+from .validate import Invalid  # one error type for the daemon
 
-MAX_ID = 254                   # ids go on the wire as id+1 in one byte
+MAX_ID = 254  # ids go on the wire as id+1 in one byte
 MAX_PROFILE_BYTES = 32768
 NAME_RE = re.compile(r"^[\w .,()'+\-—]{1,60}$", re.UNICODE)
 
@@ -26,7 +27,7 @@ NAME_RE = re.compile(r"^[\w .,()'+\-—]{1,60}$", re.UNICODE)
 def load_templates(directory):
     out = {}
     for p in sorted(Path(directory).glob("*.json")):
-        t = json.loads(p.read_text())
+        t = json.loads(p.read_text(encoding="utf-8"))
         out[t["id"]] = t
     return out
 
@@ -47,7 +48,7 @@ def validate(profile, templates):
     keys = profile.get("keys")
     if not isinstance(keys, dict) or not keys:
         raise Invalid("profile: keys must be a non-empty object")
-    known = {k["name"]: k["name"] for k in templates[chassis]["keys"]}   # our strings, not the client's
+    known = {k["name"]: k["name"] for k in templates[chassis]["keys"]}  # our strings, not the client's
     seen, clean = set(), {}
     for kname, ids in keys.items():
         if kname not in known:
@@ -95,8 +96,11 @@ def layout(profile, template):
         row = int(g["rects"][0][1] + 0.01)
         for i in ids:
             keys[str(i)] = {"name": kname, "legend": g["legend"], "row": row, "u": g["u"], "v": g["v"]}
-    ghosts = {n: {"legend": g["legend"], "u": g["u"], "v": g["v"]}
-              for n, g in geo.items() if n not in profile["keys"]}
-    return {"profile": {k: profile[k] for k in ("name", "chassis", "method")},
-            "chassis": template, "keys": keys, "ghosts": ghosts,
-            "no_keycode": template.get("no_keycode", [])}
+    ghosts = {n: {"legend": g["legend"], "u": g["u"], "v": g["v"]} for n, g in geo.items() if n not in profile["keys"]}
+    return {
+        "profile": {k: profile[k] for k in ("name", "chassis", "method")},
+        "chassis": template,
+        "keys": keys,
+        "ghosts": ghosts,
+        "no_keycode": template.get("no_keycode", []),
+    }

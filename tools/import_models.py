@@ -20,6 +20,7 @@ database, the kernel) names the model; otherwise the model is picked by
 USB id (legacy) or chosen by the user in the app.
 The hand-measured Alienware m15 R7 model is not generated here.
 """
+
 import configparser
 import csv
 import json
@@ -46,34 +47,75 @@ DMI = {
     "Area 51m R1": ["Alienware Area-51m"],
     "Alienware m18R2": ["Alienware m18 R2"],
 }
-SKIP = {"Alienware m16R1 (Brazil)"}           # duplicate of "Alienware m16R1"
-LEGACY_PIDS = {0x0511, 0x0512, 0x0513, 0x0514, 0x0515, 0x0518, 0x0520, 0x0521, 0x0522, 0x0524,
-               0x0525, 0x0526, 0x0527, 0x0528, 0x0529, 0x0530}
+SKIP = {"Alienware m16R1 (Brazil)"}  # duplicate of "Alienware m16R1"
+LEGACY_PIDS = {
+    0x0511,
+    0x0512,
+    0x0513,
+    0x0514,
+    0x0515,
+    0x0518,
+    0x0520,
+    0x0521,
+    0x0522,
+    0x0524,
+    0x0525,
+    0x0526,
+    0x0527,
+    0x0528,
+    0x0529,
+    0x0530,
+}
 ELC_PIDS = {0x0550, 0x0551}
 KEYBOARD_WORDS = re.compile(r"\b(kb|keyboard)\b", re.I)
 
 
 def kb_zones(ids, labels=("Keyboard left", "Keyboard center-left", "Keyboard center-right", "Keyboard right")):
-    return [{"id": f"kb{n}", "label": labels[n], "controller": "elc", "index": i, "group": "keyboard",
-             "verified": False} for n, i in enumerate(ids)]
+    return [
+        {"id": f"kb{n}", "label": labels[n], "controller": "elc", "index": i, "group": "keyboard", "verified": False}
+        for n, i in enumerate(ids)
+    ]
 
 
 CURATED = [
-    {"id": "dell-g15-5511", "name": "Dell G15 5511", "dmi_product": ["Dell G15 5511"],
-     "source": "OpenRGB AlienwareController.cpp platform 0x0E03 (zones 00-03); AWCC database.json (default zones 0-3).",
-     "zones": kb_zones([0, 1, 2, 3])},
-    {"id": "dell-g15-5520", "name": "Dell G15 5520", "dmi_product": ["Dell G15 5520"],
-     "source": "OpenRGB platform 0x0E07 and AWCC database.json: zones 0x10-0x13.",
-     "zones": kb_zones([0x10, 0x11, 0x12, 0x13])},
-    {"id": "dell-g15-5530", "name": "Dell G15 5530", "dmi_product": ["Dell G15 5530"],
-     "source": "OpenRGB platform 0x0E0A: zones 0x10-0x13.",
-     "zones": kb_zones([0x10, 0x11, 0x12, 0x13])},
-    {"id": "dell-g5-5505", "name": "Dell G5 15 SE 5505", "dmi_product": ["G5 5505"],
-     "source": "OpenRGB platform 0x0C01 (Left, Middle, Right, Numpad = 00-03); DMI name from AWCC database.json.",
-     "zones": kb_zones([0, 1, 2, 3], ("Keyboard left", "Keyboard middle", "Keyboard right", "Numpad"))},
-    *[{"id": f"dell-g15-{n}", "name": f"Dell G15 {n}", "dmi_product": [f"Dell G15 {n}"],
-       "source": "AWCC database.json: no zone override, AWCC's default zones 0-3.",
-       "zones": kb_zones([0, 1, 2, 3])} for n in ("5510", "5515", "5525", "5535")],
+    {
+        "id": "dell-g15-5511",
+        "name": "Dell G15 5511",
+        "dmi_product": ["Dell G15 5511"],
+        "source": "OpenRGB AlienwareController.cpp platform 0x0E03 (zones 00-03); AWCC database.json (default zones 0-3).",
+        "zones": kb_zones([0, 1, 2, 3]),
+    },
+    {
+        "id": "dell-g15-5520",
+        "name": "Dell G15 5520",
+        "dmi_product": ["Dell G15 5520"],
+        "source": "OpenRGB platform 0x0E07 and AWCC database.json: zones 0x10-0x13.",
+        "zones": kb_zones([0x10, 0x11, 0x12, 0x13]),
+    },
+    {
+        "id": "dell-g15-5530",
+        "name": "Dell G15 5530",
+        "dmi_product": ["Dell G15 5530"],
+        "source": "OpenRGB platform 0x0E0A: zones 0x10-0x13.",
+        "zones": kb_zones([0x10, 0x11, 0x12, 0x13]),
+    },
+    {
+        "id": "dell-g5-5505",
+        "name": "Dell G5 15 SE 5505",
+        "dmi_product": ["G5 5505"],
+        "source": "OpenRGB platform 0x0C01 (Left, Middle, Right, Numpad = 00-03); DMI name from AWCC database.json.",
+        "zones": kb_zones([0, 1, 2, 3], ("Keyboard left", "Keyboard middle", "Keyboard right", "Numpad")),
+    },
+    *[
+        {
+            "id": f"dell-g15-{n}",
+            "name": f"Dell G15 {n}",
+            "dmi_product": [f"Dell G15 {n}"],
+            "source": "AWCC database.json: no zone override, AWCC's default zones 0-3.",
+            "zones": kb_zones([0, 1, 2, 3]),
+        }
+        for n in ("5510", "5515", "5525", "5535")
+    ],
 ]
 
 
@@ -82,8 +124,12 @@ def slug(name):
 
 
 def rev(repo):
-    return subprocess.run(["git", "-C", str(repo), "log", "-1", "--format=%h"],
-                          capture_output=True, text=True).stdout.strip() or "?"
+    return (
+        subprocess.run(
+            ["git", "-C", str(repo), "log", "-1", "--format=%h"], capture_output=True, text=True
+        ).stdout.strip()
+        or "?"
+    )
 
 
 def from_csv(path, commit):
@@ -112,29 +158,38 @@ def from_csv(path, commit):
         per_key = any(x["vid"] == 0x0D62 for x in m["devs"])
         zones = []
         for lid, flags, name in sorted(d["lights"]):
-            if flags == 2:                  # caps/wifi/HDD indicators: not lighting
+            if flags == 2:  # caps/wifi/HDD indicators: not lighting
                 continue
-            if legacy and lid > 23:         # the legacy mask is 24 bits wide
+            if legacy and lid > 23:  # the legacy mask is 24 bits wide
                 continue
-            z = {"id": f"l{lid}", "label": name.strip().strip("<>").strip() or f"Light {lid}", "controller": "legacy" if legacy else "elc",
-                 "group": "keyboard" if KEYBOARD_WORDS.search(name) and not per_key else "chassis",
-                 "verified": False}
+            z = {
+                "id": f"l{lid}",
+                "label": name.strip().strip("<>").strip() or f"Light {lid}",
+                "controller": "legacy" if legacy else "elc",
+                "group": "keyboard" if KEYBOARD_WORDS.search(name) and not per_key else "chassis",
+                "verified": False,
+            }
             if legacy:
-                z["mask"] = 1 << lid        # SDK SetMaskAndColor: mask = 1 << index
+                z["mask"] = 1 << lid  # SDK SetMaskAndColor: mask = 1 << index
             else:
                 z["index"] = lid
                 if flags == 1:
                     z["role"] = "power"
             zones.append(z)
         mid = slug(m["name"])
-        if mid in seen:                     # a second, conflicting entry (m18R1): keep the first
+        if mid in seen:  # a second, conflicting entry (m18R1): keep the first
             continue
         seen.add(mid)
         kb = "per-key" if per_key else ("zones" if any(z["group"] == "keyboard" for z in zones) else "none")
-        model = {"id": mid, "name": m["name"], "dmi_product": DMI.get(m["name"], []),
-                 "support": "reported",
-                 "source": f"alienfx-tools devices.csv @ {commit} (MIT), community mapping for {d['vid']:04x}:{d['pid']:04x}.",
-                 "keyboard": {"type": kb}, "zones": zones}
+        model = {
+            "id": mid,
+            "name": m["name"],
+            "dmi_product": DMI.get(m["name"], []),
+            "support": "reported",
+            "source": f"alienfx-tools devices.csv @ {commit} (MIT), community mapping for {d['vid']:04x}:{d['pid']:04x}.",
+            "keyboard": {"type": kb},
+            "zones": zones,
+        }
         if legacy:
             model["usb"] = [f"187c:{d['pid']:04x}"]
         out.append(model)
@@ -160,19 +215,33 @@ def from_akbl(directory, commit):
             if not 0 < mask <= 0xFFFFFF or r.get("CAN_LIGHT", "True") != "True":
                 continue
             desc = r.get("DESCRIPTION", sec[7:]).strip()
-            zones.append({"id": slug(r.get("ID", sec[7:]))[:32] or f"m{mask}", "label": desc,
-                          "controller": "legacy", "mask": mask,
-                          "group": "keyboard" if KEYBOARD_WORDS.search(desc) else "chassis", "verified": False})
+            zones.append(
+                {
+                    "id": slug(r.get("ID", sec[7:]))[:32] or f"m{mask}",
+                    "label": desc,
+                    "controller": "legacy",
+                    "mask": mask,
+                    "group": "keyboard" if KEYBOARD_WORDS.search(desc) else "chassis",
+                    "verified": False,
+                }
+            )
         ids = set()
         zones = [z for z in zones if not (z["id"] in ids or ids.add(z["id"]))]
         if not zones:
             continue
         name = common.get("NAME", ini.stem).strip()
-        out.append({"id": "akbl-" + slug(name)[:27], "name": f"Alienware {name}" if not name.lower().startswith("alienware") else name,
-                    "dmi_product": [], "usb": [f"187c:{pid:04x}"], "support": "reported",
-                    "source": f"akbl {ini.name} @ {commit} (GPL-3.0 data file; masks and names only).",
-                    "keyboard": {"type": "zones" if any(z["group"] == "keyboard" for z in zones) else "none"},
-                    "zones": zones})
+        out.append(
+            {
+                "id": "akbl-" + slug(name)[:27],
+                "name": f"Alienware {name}" if not name.lower().startswith("alienware") else name,
+                "dmi_product": [],
+                "usb": [f"187c:{pid:04x}"],
+                "support": "reported",
+                "source": f"akbl {ini.name} @ {commit} (GPL-3.0 data file; masks and names only).",
+                "keyboard": {"type": "zones" if any(z["group"] == "keyboard" for z in zones) else "none"},
+                "zones": zones,
+            }
+        )
     return out
 
 
@@ -182,20 +251,23 @@ def main(afx_tools, akbl):
     models += from_akbl(akbl / "usr/share/AKBL/computers", rev(akbl))
     for c in CURATED:
         models.append({**c, "support": "reported", "keyboard": {"type": "zones"}})
-    for p in OUT.glob("*.json"):              # replace only what this script generated
+    for p in OUT.glob("*.json"):  # replace only what this script generated
         try:
-            old = json.loads(p.read_text())
+            old = json.loads(p.read_text(encoding="utf-8"))
         except ValueError:
             continue
         if p.name not in KEEP and old.get("generated_by") == "tools/import_models.py":
             p.unlink()
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
     from alienfix import models as M
+
     for m in models:
         m["generated_by"] = "tools/import_models.py"
         M.check(m)
-        (OUT / f"{m['id']}.json").write_text(json.dumps(m, indent=1, ensure_ascii=False) + "\n")
-        print(f"{m['id']:<34} {m['keyboard']['type']:<8} {len(m['zones']):>2} zones  {', '.join(m['dmi_product']) or ', '.join(m.get('usb', []))}")
+        (OUT / f"{m['id']}.json").write_text(json.dumps(m, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        print(
+            f"{m['id']:<34} {m['keyboard']['type']:<8} {len(m['zones']):>2} zones  {', '.join(m['dmi_product']) or ', '.join(m.get('usb', []))}"
+        )
     print(len(models), "models")
 
 

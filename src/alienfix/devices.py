@@ -13,6 +13,7 @@ id list, so variants with another PID are still found:
   the X51 and Alpha); no hidraw involved.
 The keyboard node also carries keystrokes: only the daemon opens it.
 """
+
 import errno
 import fcntl
 import logging
@@ -46,11 +47,11 @@ def output_reports(desc):
     sizes, rid, rsize, rcount, i = {}, 0, 0, 0, 0
     while i < len(desc):
         prefix = desc[i]
-        if prefix == 0xFE:                               # long item: skip
+        if prefix == 0xFE:  # long item: skip
             i += 3 + (desc[i + 1] if i + 1 < len(desc) else 0)
             continue
         n = (0, 1, 2, 4)[prefix & 0x03]
-        data = int.from_bytes(desc[i + 1:i + 1 + n], "little")
+        data = int.from_bytes(desc[i + 1 : i + 1 + n], "little")
         tag = prefix & 0xFC
         if tag == 0x84:
             rid = data
@@ -58,17 +59,17 @@ def output_reports(desc):
             rsize = data
         elif tag == 0x94:
             rcount = data
-        elif tag == 0x90:                                # Output main item
+        elif tag == 0x90:  # Output main item
             sizes[rid] = sizes.get(rid, 0) + rsize * rcount
         i += 1 + n
     return {r: (bits + 7) // 8 for r, bits in sizes.items()}
 
 
-KB_SIGNATURE = bytes.fromhex("0689ff09cca10185cc")   # page FF89, usage CC, collection, report id CC
+KB_SIGNATURE = bytes.fromhex("0689ff09cca10185cc")  # page FF89, usage CC, collection, report id CC
 
 
 def _hid_id(node):
-    for line in (node / "device/uevent").read_text().splitlines():
+    for line in (node / "device/uevent").read_text(encoding="utf-8").splitlines():
         if line.startswith("HID_ID="):
             _bus, vid, pid = line[7:].split(":")
             return vid.upper(), pid.upper()
@@ -77,7 +78,7 @@ def _hid_id(node):
 
 def classify(vid, desc):
     """-> ("keyboard" | "elc" | "legacy", info) or (None, None)."""
-    if KB_SIGNATURE in desc and b"\x95\x3f\xb1" in desc:          # 63 x 8-bit Feature
+    if KB_SIGNATURE in desc and b"\x95\x3f\xb1" in desc:  # 63 x 8-bit Feature
         return "keyboard", {}
     if vid != ALIENWARE_VID:
         return None, None
@@ -156,15 +157,17 @@ class Device:
                 time.sleep(0.5)
 
     def _send_one(self, report):
+        assert self.fd is not None, "ensure_open() first"
         if self.role == "keyboard":
             buf = bytearray(report)
             fcntl.ioctl(self.fd, _HIDIOCSFEATURE(len(buf)), buf)
         else:
-            os.write(self.fd, report)          # ELC: ~64 ms per command (controller-side)
+            os.write(self.fd, report)  # ELC: ~64 ms per command (controller-side)
 
     def input_report(self, report_id, size):
         """HIDIOCGINPUT; None if the kernel or device does not answer."""
         buf = bytearray([report_id]) + bytearray(size - 1)
+        assert self.fd is not None, "ensure_open() first"
         try:
             fcntl.ioctl(self.fd, _HIDIOCGINPUT(len(buf)), buf)
         except OSError:
@@ -182,7 +185,7 @@ class Hardware:
 
     def presence(self):
         f = find()
-        out = {role: f[role] is not None for role in ("keyboard", "elc", "legacy")}
+        out: dict[str, bool | list[str]] = {role: f[role] is not None for role in ("keyboard", "elc", "legacy")}
         out["wmi"] = wmi_zone_count() > 0
         out["usb"] = sorted(v[1]["usb"] for v in f.values() if v)
         return out
@@ -204,8 +207,7 @@ class Hardware:
 
     def keyboard_static(self, colors, brightness):
         self._custom_mode()
-        self.kb.send([*protocol.kb_colors(sorted(colors.items())), protocol.kb_brightness(brightness)],
-                     pace=0.002)
+        self.kb.send([*protocol.kb_colors(sorted(colors.items())), protocol.kb_brightness(brightness)], pace=0.002)
 
     def keyboard_effect(self, effect, brightness):
         self.kb.send([protocol.kb_effect(effect["name"], effect["tempo"], effect["c1"], effect["c2"])])
@@ -243,7 +245,7 @@ class Hardware:
         dev.send(protocol.legacy_colors(size, pairs))
 
     def _legacy_wait_ready(self, size):
-        for _ in range(50):                   # the SDK polls up to 100 x 10 ms
+        for _ in range(50):  # the SDK polls up to 100 x 10 ms
             self.legacy.send([protocol.legacy_status(size)])
             rep = self.legacy.input_report(protocol.LEGACY_REPORT_ID, size)
             if rep is None or protocol.LEGACY_READY in rep[:2]:
@@ -254,4 +256,4 @@ class Hardware:
     @staticmethod
     def wmi_zones(pairs):
         for index, rgb in pairs:
-            (WMI / f"zone{index:02d}").write_text(protocol.wmi_value(rgb))
+            (WMI / f"zone{index:02d}").write_text(protocol.wmi_value(rgb), encoding="utf-8")

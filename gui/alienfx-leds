@@ -30,7 +30,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
 gi.require_version("Adw", "1")
 gi.require_version("PangoCairo", "1.0")
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango, PangoCairo  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango, PangoCairo
 
 # Shared with the daemon (evdev key names): next to the source tree, or where
 # install.sh puts it.
@@ -38,8 +38,8 @@ for _lib in (Path(__file__).resolve().parent.parent / "src", Path("/usr/local/li
     if (_lib / "alienfix" / "keycodes.py").is_file():
         sys.path.insert(0, str(_lib))
         break
-from alienfix.keycodes import load_evdev_names  # noqa: E402
-from alienfix.effects import RIPPLE_SPEED, RIPPLE_SPEEDS, SOFTWARE  # noqa: E402
+from alienfix.effects import RIPPLE_SPEED, RIPPLE_SPEEDS, SOFTWARE
+from alienfix.keycodes import load_evdev_names
 
 APP_ID = "io.github.zeecka.AlienFix"
 APP_NAME = "AlienFX LEDs"
@@ -94,7 +94,7 @@ class KeyCap:
 class Board:
     """Geometry of a chassis template, optionally with a profile's id mapping."""
 
-    def __init__(self, template, key_ids=None):
+    def __init__(self, template, ids=None):
         self.template = template
         self.width, self.height = template["width"], template["height"]
         self.no_keycode = set(template.get("no_keycode", []))
@@ -106,9 +106,9 @@ class Board:
                 self.caps[k["name"]] = KeyCap(k["name"], k["legend"], [(k["x"], k["y"], k["w"], k["h"])])
             else:
                 cap.rects.append((k["x"], k["y"], k["w"], k["h"]))
-        for name, ids in (key_ids or {}).items():
+        for name, key_led_ids in (ids or {}).items():
             if name in self.caps:
-                self.caps[name].ids = sorted(ids)
+                self.caps[name].ids = sorted(key_led_ids)
 
     @classmethod
     def from_layout(cls, layout):
@@ -128,7 +128,7 @@ def rgba_from_rgb(rgb):
 
 
 def rgb_from_rgba(c):
-    return tuple(max(0, min(255, int(round(x * 255)))) for x in (c.red, c.green, c.blue))
+    return tuple(max(0, min(255, round(x * 255))) for x in (c.red, c.green, c.blue))
 
 
 def color_button(rgb):
@@ -214,8 +214,9 @@ def describe_error(err):
         return f"Rejected by the service: {msg}"
     if is_absent_error(err, remote):
         return "The alienfixd service is not running."
-    if remote in ("org.freedesktop.DBus.Error.NoReply", "org.freedesktop.DBus.Error.Timeout") \
-            or err.matches(Gio.io_error_quark(), Gio.IOErrorEnum.TIMED_OUT):
+    if remote in ("org.freedesktop.DBus.Error.NoReply", "org.freedesktop.DBus.Error.Timeout") or err.matches(
+        Gio.io_error_quark(), Gio.IOErrorEnum.TIMED_OUT
+    ):
         return "The alienfixd service does not answer."
     return f"D-Bus error: {msg}"
 
@@ -223,11 +224,16 @@ def describe_error(err):
 def is_absent_error(err, remote=None):
     if remote is None and Gio.DBusError.is_remote_error(err):
         remote = Gio.DBusError.get_remote_error(err)
-    return remote in ("org.freedesktop.DBus.Error.ServiceUnknown",
-                      "org.freedesktop.DBus.Error.NameHasNoOwner",
-                      "org.freedesktop.DBus.Error.UnknownObject") \
-        or err.matches(Gio.dbus_error_quark(), Gio.DBusError.SERVICE_UNKNOWN) \
+    return (
+        remote
+        in (
+            "org.freedesktop.DBus.Error.ServiceUnknown",
+            "org.freedesktop.DBus.Error.NameHasNoOwner",
+            "org.freedesktop.DBus.Error.UnknownObject",
+        )
+        or err.matches(Gio.dbus_error_quark(), Gio.DBusError.SERVICE_UNKNOWN)
         or err.matches(Gio.dbus_error_quark(), Gio.DBusError.NAME_HAS_NO_OWNER)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -235,8 +241,7 @@ def is_absent_error(err, remote=None):
 # ---------------------------------------------------------------------------
 class Client:
     def __init__(self, on_state, on_owner, on_layout):
-        self.bus_type = (Gio.BusType.SESSION if os.environ.get("ALIENFIX_BUS") == "session"
-                         else Gio.BusType.SYSTEM)
+        self.bus_type = Gio.BusType.SESSION if os.environ.get("ALIENFIX_BUS") == "session" else Gio.BusType.SYSTEM
         self.on_state, self.on_owner, self.on_layout = on_state, on_owner, on_layout
         self.proxy = None
         self.connecting = False
@@ -261,12 +266,12 @@ class Client:
                 on_ready(err)
                 return
             self.proxy.connect("g-signal", self._on_signal)
-            self.proxy.connect("notify::g-name-owner",
-                               lambda p, _s: self.on_owner(p.get_name_owner() is not None))
+            self.proxy.connect("notify::g-name-owner", lambda p, _s: self.on_owner(p.get_name_owner() is not None))
             on_ready(None)
 
-        Gio.DBusProxy.new_for_bus(self.bus_type, Gio.DBusProxyFlags.DO_NOT_LOAD_PROPERTIES, None,
-                                  BUS_NAME, OBJ_PATH, IFACE, None, done)
+        Gio.DBusProxy.new_for_bus(
+            self.bus_type, Gio.DBusProxyFlags.DO_NOT_LOAD_PROPERTIES, None, BUS_NAME, OBJ_PATH, IFACE, None, done
+        )
 
     @property
     def available(self):
@@ -276,8 +281,7 @@ class Client:
         """Async call; on_done(result_tuple_or_None, GLib.Error_or_None)."""
         if self.proxy is None:
             if on_done:
-                err = GLib.Error.new_literal(Gio.dbus_error_quark(), "bus unavailable",
-                                             Gio.DBusError.SERVICE_UNKNOWN)
+                err = GLib.Error.new_literal(Gio.dbus_error_quark(), "bus unavailable", Gio.DBusError.SERVICE_UNKNOWN)
                 GLib.idle_add(lambda: (on_done(None, err), False)[1])
             return
 
@@ -315,15 +319,15 @@ class KeyboardView(Gtk.DrawingArea):
 
     SELECT = (0.30, 0.62, 1.0)
     UNLIT = (0.22, 0.22, 0.25)
-    GAP = 0.07          # u between keys
+    GAP = 0.07  # u between keys
 
     def __init__(self, board, mode="select"):
         super().__init__(hexpand=True, vexpand=True)
         self.board, self.mode = board, mode
-        self.colors = {}           # id -> (r, g, b)
-        self.cap_colors = {}       # key name -> (r, g, b), wizard marks
+        self.colors = {}  # id -> (r, g, b)
+        self.cap_colors = {}  # key name -> (r, g, b), wizard marks
         self.selected = set()
-        self.target = None          # key name to outline (wizard: last assigned)
+        self.target = None  # key name to outline (wizard: last assigned)
         self.on_selection_changed = None
         self.on_pick = None
         self._scale = 1
@@ -383,8 +387,7 @@ class KeyboardView(Gtk.DrawingArea):
             if cap is not None and self.on_pick:
                 self.on_pick(cap.name)
             return
-        multi = bool(gesture.get_current_event_state()
-                     & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK))
+        multi = bool(gesture.get_current_event_state() & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK))
         if cap is None or not cap.ids:
             if cap is None and not multi:
                 self.set_selection(())
@@ -423,12 +426,11 @@ class KeyboardView(Gtk.DrawingArea):
         """Path of the keycap: one rounded rect, or an L polygon for ISO Enter."""
         g = self.GAP / 2
         r = s * 0.1
-        rects = [((x + g) * s + ox, (y + g) * s + oy, (w - 2 * g) * s, (h - 2 * g) * s)
-                 for x, y, w, h in cap.rects]
+        rects = [((x + g) * s + ox, (y + g) * s + oy, (w - 2 * g) * s, (h - 2 * g) * s) for x, y, w, h in cap.rects]
         if len(rects) == 2:
             (ax, ay, aw, ah), (bx, by, bw, bh) = rects
             right = ax + aw
-            if abs(right - (bx + bw)) < 1 and by > ay:      # right-aligned L (ISO Enter)
+            if abs(right - (bx + bw)) < 1 and by > ay:  # right-aligned L (ISO Enter)
                 pts = [(ax, ay), (right, ay), (right, by + bh), (bx, by + bh), (bx, ay + ah), (ax, ay + ah)]
                 rounded_poly(cr, pts, r)
                 return (min(ax, bx), ay, right - min(ax, bx), by + bh - ay), (ax, ay, aw, ah)
@@ -453,14 +455,14 @@ class KeyboardView(Gtk.DrawingArea):
             no_led = not cap.ids and cap.name not in self.cap_colors and self.mode != "pick"
             lit = fill is not None and sum(fill) > 0.15
             base = fill or ((0.14, 0.14, 0.16) if no_led else self.UNLIT)
-            if lit:                                   # glow
+            if lit:  # glow
                 cr.save()
                 self._outline(cr, cap, s, ox, oy)
                 cr.set_source_rgba(*base, 0.35)
                 cr.set_line_width(s * 0.12)
                 cr.stroke()
                 cr.restore()
-            box, label_box = self._outline(cr, cap, s, ox, oy)
+            _box, label_box = self._outline(cr, cap, s, ox, oy)
             cr.set_source_rgb(*base)
             cr.fill_preserve()
             if no_led:
@@ -515,41 +517,54 @@ class KeyboardView(Gtk.DrawingArea):
 # ---------------------------------------------------------------------------
 class KeyboardPage(Gtk.Box):
     def __init__(self, win, board):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=12,
-                         margin_top=18, margin_bottom=18, margin_start=18, margin_end=18)
+        super().__init__(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=12,
+            margin_top=18,
+            margin_bottom=18,
+            margin_start=18,
+            margin_end=18,
+        )
         self.win = win
         self.info = Gtk.Label(xalign=0, wrap=True, css_classes=["dim-label"])
         self.append(self.info)
         self.view = KeyboardView(board)
         self.view.on_selection_changed = self._on_selection
         self.append(Gtk.Frame(child=self.view, css_classes=["view"]))
-        self.append(Gtk.Label(xalign=0, css_classes=["caption", "dim-label"], wrap=True,
-                              label="Click: select · Ctrl/Shift+click: multiple selection · "
-                                    "orange dot: LED without keycode · dashed: no LED"))
-        bar = Gtk.Box(spacing=8)
+        self.append(
+            Gtk.Label(
+                xalign=0,
+                css_classes=["caption", "dim-label"],
+                wrap=True,
+                label="Click: select · Ctrl/Shift+click: multiple selection · "
+                "orange dot: LED without keycode · dashed: no LED",
+            )
+        )
+        buttons = Gtk.Box(spacing=8)
         all_btn = Gtk.Button(label="Select all")
         all_btn.connect("clicked", lambda *_: self.view.select_all())
         none_btn = Gtk.Button(label="None")
         none_btn.connect("clicked", lambda *_: self.view.set_selection(()))
         self.count = Gtk.Label(css_classes=["dim-label"], margin_start=6)
         for w in (all_btn, none_btn, self.count, Gtk.Box(hexpand=True), Gtk.Label(label="Color")):
-            bar.append(w)
+            buttons.append(w)
         self.color = color_button((255, 60, 0))
-        bar.append(self.color)
+        buttons.append(self.color)
         self.apply_btn = Gtk.Button(label="Apply to selection", css_classes=["suggested-action"])
         self.apply_btn.connect("clicked", self._apply_selection)
         whole = Gtk.Button(label="Whole keyboard")
         whole.connect("clicked", self._apply_all)
-        bar.append(self.apply_btn)
-        bar.append(whole)
-        self.append(bar)
+        buttons.append(self.apply_btn)
+        buttons.append(whole)
+        self.append(buttons)
         self._on_selection()
 
     def _on_selection(self):
         keys = len(self.view.selected)
         n = len(self.view.selected_ids())
-        self.count.set_label("No key selected" if not keys else
-                             f"{keys} key{'s' if keys > 1 else ''} ({n} LED{'s' if n > 1 else ''})")
+        self.count.set_label(
+            "No key selected" if not keys else f"{keys} key{'s' if keys > 1 else ''} ({n} LED{'s' if n > 1 else ''})"
+        )
         self.apply_btn.set_sensitive(keys > 0)
 
     def _apply_selection(self, _btn):
@@ -562,20 +577,24 @@ class KeyboardPage(Gtk.Box):
     def update(self, state):
         kb = state.get("keyboard", {})
         if not self.view.board.all_ids():
-            self.info.set_label("No key map for this PC yet. Open Machine → “Create a key map for this "
-                                "PC…”: each LED blinks in turn and you show which key it is.")
+            self.info.set_label(
+                "No key map for this PC yet. Open Machine → “Create a key map for this "
+                "PC…”: each LED blinks in turn and you show which key it is."
+            )
             return
         if kb.get("mode") == "static":
             base = tuple(kb["base"]) if kb.get("base") else None
-            colors = {i: base for i in self.view.board.all_ids()} if base else {}
+            colors = dict.fromkeys(self.view.board.all_ids(), base) if base else {}
             colors.update({int(k): tuple(v) for k, v in kb.get("keys", {}).items()})
             self.view.set_colors(colors)
             text = "Static mode: per-key colors."
         else:
             self.view.set_colors({})
             name = EFFECT_LABEL.get(kb.get("effect", {}).get("name"), "?")
-            text = (f"Effect running ({name}). Per-key colors are kept by the service; "
-                    "applying a color switches back to static mode.")
+            text = (
+                f"Effect running ({name}). Per-key colors are kept by the service; "
+                "applying a color switches back to static mode."
+            )
         if not state.get("enabled", True):
             text += " Lighting is off."
         self.info.set_label(text)
@@ -590,20 +609,30 @@ class EffectsPage(Adw.PreferencesPage):
         self.available = set(layout.get("effects", []))
         self.kb_type = layout.get("model", {}).get("keyboard", "per-key")
         self.zones = {z["id"]: z for z in layout.get("zones", []) if z.get("group", "chassis") == "chassis"}
-        self.targets_spec = ([("keyboard", "Keyboard")] if self.kb_type != "none" else []) + \
-            [(zid, z["label"].split(" (")[0]) for zid, z in self.zones.items()]   # "Rear LEDs A (…)" -> "Rear LEDs A"
+        self.targets_spec = ([("keyboard", "Keyboard")] if self.kb_type != "none" else []) + [
+            (zid, z["label"].split(" (")[0]) for zid, z in self.zones.items()
+        ]  # "Rear LEDs A (…)" -> "Rear LEDs A"
         self.syncing = False
         self.last_effect = None
         self.entries = []
 
-        tgroup = Adw.PreferencesGroup(title="Apply to",
-                                      description="Pick one or several lighting groups; the list of "
-                                                  "effects follows what they all support.")
+        tgroup = Adw.PreferencesGroup(
+            title="Apply to",
+            description="Pick one or several lighting groups; the list of effects follows what they all support.",
+        )
         self.add(tgroup)
         self.checks = {}
         row = plain_row("")
-        flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=6, valign=Gtk.Align.CENTER,
-                           column_spacing=18, row_spacing=4, hexpand=True, margin_top=6, margin_bottom=6)
+        flow = Gtk.FlowBox(
+            selection_mode=Gtk.SelectionMode.NONE,
+            max_children_per_line=6,
+            valign=Gtk.Align.CENTER,
+            column_spacing=18,
+            row_spacing=4,
+            hexpand=True,
+            margin_top=6,
+            margin_bottom=6,
+        )
         first = self.targets_spec[0][0] if self.targets_spec else None
         for tid, label in self.targets_spec:
             cb = Gtk.CheckButton(label=label, active=tid == first)
@@ -640,8 +669,9 @@ class EffectsPage(Adw.PreferencesPage):
         self.how = plain_row("How it runs")
         self.how.set_subtitle_lines(4)
         group.add(self.how)
-        self.apply_btn = Gtk.Button(label="Apply", halign=Gtk.Align.CENTER, margin_top=18,
-                                    css_classes=["suggested-action", "pill"])
+        self.apply_btn = Gtk.Button(
+            label="Apply", halign=Gtk.Align.CENTER, margin_top=18, css_classes=["suggested-action", "pill"]
+        )
         self.apply_btn.connect("clicked", self._apply)
         group.add(self.apply_btn)
         self._on_targets()
@@ -664,8 +694,9 @@ class EffectsPage(Adw.PreferencesPage):
         previous = self._effect_id()
         kb = "keyboard" in chosen
         zone_fx = [set(self.zones[t].get("effects", ["static"])) for t in chosen if t != "keyboard"]
-        self.entries = [e for e, _l, zone, _n in EFFECTS
-                        if (not kb or e in self.available) and all(zone in fx for fx in zone_fx)]
+        self.entries = [
+            e for e, _l, zone, _n in EFFECTS if (not kb or e in self.available) and all(zone in fx for fx in zone_fx)
+        ]
         self.combo.set_model(Gtk.StringList.new([EFFECT_LABEL[e] for e in self.entries]))
         self.combo.set_selected(self.entries.index(previous) if previous in self.entries else 0)
         self.apply_btn.set_sensitive(bool(chosen))
@@ -691,8 +722,7 @@ class EffectsPage(Adw.PreferencesPage):
             if t == "keyboard" and self.kb_type == "zones":
                 how = "keyboard zones, run by the lighting controller"
             elif t == "keyboard":
-                how = ("software animation rendered by the service" if eid in SOFTWARE
-                       else "keyboard firmware effect")
+                how = "software animation rendered by the service" if eid in SOFTWARE else "keyboard firmware effect"
                 if eid == "static":
                     how = "whole keyboard, one color"
             elif eid == "static":
@@ -720,8 +750,7 @@ class EffectsPage(Adw.PreferencesPage):
                 else:
                     self.win.call("SetKeyboardEffect", GLib.Variant("(sy(yyy)(yyy))", (eid, tempo, c1, c2)))
             else:
-                self.win.call("SetZoneEffect",
-                              GLib.Variant("(ssy(yyy)(yyy))", (t, EFFECT_ZONE[eid], tempo, c1, c2)))
+                self.win.call("SetZoneEffect", GLib.Variant("(ssy(yyy)(yyy))", (t, EFFECT_ZONE[eid], tempo, c1, c2)))
 
     def update(self, state):
         eff = state.get("keyboard", {}).get("effect")
@@ -759,8 +788,14 @@ class ChassisPage(Adw.PreferencesPage):
             row.add_suffix(button)
             row.set_activatable_widget(button)
             group.add(row)
-            self.zones[zone["id"]] = {"button": button, "spinner": spinner, "busy": False, "pending": None,
-                                      "row": row, "verified": zone.get("verified", True)}
+            self.zones[zone["id"]] = {
+                "button": button,
+                "spinner": spinner,
+                "busy": False,
+                "pending": None,
+                "row": row,
+                "verified": zone.get("verified", True),
+            }
 
     def _on_color(self, button, _pspec, zone):
         if self.syncing:
@@ -796,8 +831,11 @@ class ChassisPage(Adw.PreferencesPage):
                 z["button"].set_rgba(rgba_from_rgb(rgb))
             if z:
                 e = fx.get(zone, {"name": "static"})
-                text = "Static color" if e["name"] == "static" else \
-                    f"{e['name'].title()} · tempo {e.get('tempo', '?')} (set in Effects)"
+                text = (
+                    "Static color"
+                    if e["name"] == "static"
+                    else f"{e['name'].title()} · tempo {e.get('tempo', '?')} (set in Effects)"
+                )
                 if not z["verified"]:
                     text += " · not verified on this model"
                 z["row"].set_subtitle(text)
@@ -808,9 +846,11 @@ class RipplePage(Adw.PreferencesPage):
     """Typing ripple settings. The service draws the rings and saves the
     settings, so the Quick Settings toggle and this page stay in step."""
 
-    PRIVACY = ("While the ripple is on, the lighting service reads which keys of the built-in "
-               "keyboard are pressed, to start a ring there. Nothing else is done with them: "
-               "they are not recorded, logged or sent anywhere. External keyboards are not read.")
+    PRIVACY = (
+        "While the ripple is on, the lighting service reads which keys of the built-in "
+        "keyboard are pressed, to start a ring there. Nothing else is done with them: "
+        "they are not recorded, logged or sent anywhere. External keyboards are not read."
+    )
 
     def __init__(self, win):
         super().__init__()
@@ -820,17 +860,24 @@ class RipplePage(Adw.PreferencesPage):
 
         notice = Adw.PreferencesGroup()
         card = Gtk.Box(spacing=12, css_classes=["card"])
-        card.append(Gtk.Image(icon_name="security-high-symbolic", pixel_size=32,
-                              margin_start=14, margin_top=12, margin_bottom=12))
-        card.append(Gtk.Label(label=self.PRIVACY, wrap=True, xalign=0, hexpand=True,
-                              margin_end=14, margin_top=12, margin_bottom=12))
+        card.append(
+            Gtk.Image(
+                icon_name="security-high-symbolic", pixel_size=32, margin_start=14, margin_top=12, margin_bottom=12
+            )
+        )
+        card.append(
+            Gtk.Label(
+                label=self.PRIVACY, wrap=True, xalign=0, hexpand=True, margin_end=14, margin_top=12, margin_bottom=12
+            )
+        )
         notice.add(card)
         self.add(notice)
 
         group = Adw.PreferencesGroup()
         self.add(group)
-        self.switch = Adw.SwitchRow(title="Enable", subtitle="Off by default. Each key you type "
-                                                             "sends a ripple across the keyboard.")
+        self.switch = Adw.SwitchRow(
+            title="Enable", subtitle="Off by default. Each key you type sends a ripple across the keyboard."
+        )
         self.switch.connect("notify::active", self._send)
         group.add(self.switch)
         row, self.fg = color_row("Ripple color", (255, 110, 0), self._send)
@@ -841,14 +888,16 @@ class RipplePage(Adw.PreferencesPage):
         self.speed.set_value(RIPPLE_SPEED)
         self.speed.connect("notify::value", lambda *_: self.syncing or self.speed_debounce.trigger())
         group.add(self.speed)
-        self.under = Adw.ComboRow(title="Under the ripple", model=Gtk.StringList.new(
-            ["Current effect", "Background color"]))
+        self.under = Adw.ComboRow(
+            title="Under the ripple", model=Gtk.StringList.new(["Current effect", "Background color"])
+        )
         self.under.connect("notify::selected", self._send)
         group.add(self.under)
         self.bg_row, self.bg = color_row("Background color", (0, 0, 25), self._send)
         group.add(self.bg_row)
-        try_it = Adw.PreferencesGroup(title="Try it",
-                                      description="Any key of the built-in keyboard works, in any window.")
+        try_it = Adw.PreferencesGroup(
+            title="Try it", description="Any key of the built-in keyboard works, in any window."
+        )
         try_it.add(Gtk.Entry(placeholder_text="Type here…"))
         self.add(try_it)
         self._show_under()
@@ -857,15 +906,26 @@ class RipplePage(Adw.PreferencesPage):
         effect = self.under.get_selected() == 0
         self.bg_row.set_visible(not effect)
         self.under.set_subtitle(
-            "Firmware effects are redrawn, so may differ slightly" if effect else "One color for every key")
+            "Firmware effects are redrawn, so may differ slightly" if effect else "One color for every key"
+        )
 
     def _send(self, *_):
         self._show_under()
         if self.syncing:
             return
-        self.win.call("SetRipple", GLib.Variant("(b(yyy)ys(yyy))", (
-            self.switch.get_active(), rgb_from_rgba(self.fg.get_rgba()), int(self.speed.get_value()),
-            "effect" if self.under.get_selected() == 0 else "color", rgb_from_rgba(self.bg.get_rgba()))))
+        self.win.call(
+            "SetRipple",
+            GLib.Variant(
+                "(b(yyy)ys(yyy))",
+                (
+                    self.switch.get_active(),
+                    rgb_from_rgba(self.fg.get_rgba()),
+                    int(self.speed.get_value()),
+                    "effect" if self.under.get_selected() == 0 else "color",
+                    rgb_from_rgba(self.bg.get_rgba()),
+                ),
+            ),
+        )
 
     def update(self, state):
         rp = state.get("ripple")
@@ -907,8 +967,9 @@ class ProfilePage(Adw.PreferencesPage):
             src = plain_row("Where the lighting map comes from", subtitle=model["source"])
             src.set_subtitle_lines(4)
             group.add(src)
-        self.model_combo = Adw.ComboRow(title="Use the lighting map of",
-                                        subtitle="Automatic uses the product name, then the USB id")
+        self.model_combo = Adw.ComboRow(
+            title="Use the lighting map of", subtitle="Automatic uses the product name, then the USB id"
+        )
         self.model_ids = [""]
         self.model_combo.set_model(Gtk.StringList.new(["Automatic"]))
         group.add(self.model_combo)
@@ -924,8 +985,7 @@ class ProfilePage(Adw.PreferencesPage):
         self.product_row.set_subtitle(info.get("dmi_product") or "unknown")
         ms = sorted(info.get("models", []), key=lambda m: (m["support"] != "verified", m["name"].lower()))
         self.model_ids = [""] + [m["id"] for m in ms]
-        labels = ["Automatic"] + [m["name"] + ("" if m["support"] == "verified" else " (community)")
-                                  for m in ms]
+        labels = ["Automatic"] + [m["name"] + ("" if m["support"] == "verified" else " (community)") for m in ms]
         self.model_combo.set_model(Gtk.StringList.new(labels))
         current = info.get("model") if info.get("model_forced") else ""
         self.model_combo.set_selected(self.model_ids.index(current) if current in self.model_ids else 0)
@@ -942,10 +1002,15 @@ class ProfilePage(Adw.PreferencesPage):
         group = Adw.PreferencesGroup(title="Keyboard key map")
         self.add(group)
         mapped = len(Board.from_layout(layout).all_ids())
-        row = plain_row("Active key map", subtitle=(
-            f"{prof.get('name', '?')} · {'custom' if layout.get('custom') else 'built-in'} · "
-            f"{mapped} LED ids · mapped by {'camera' if prof.get('method') == 'camera' else 'blink test'}"
-            if mapped else "none yet: create one below"))
+        row = plain_row(
+            "Active key map",
+            subtitle=(
+                f"{prof.get('name', '?')} · {'custom' if layout.get('custom') else 'built-in'} · "
+                f"{mapped} LED ids · mapped by {'camera' if prof.get('method') == 'camera' else 'blink test'}"
+                if mapped
+                else "none yet: create one below"
+            ),
+        )
         group.add(row)
         tpl = plain_row("Chassis template", subtitle=chassis.get("name", chassis.get("id")))
         if not chassis.get("verified", False):
@@ -955,22 +1020,22 @@ class ProfilePage(Adw.PreferencesPage):
         create = Adw.PreferencesGroup(
             title="New PC? Create its key map",
             description="Every LED id blinks in turn: you click (or press) the key that blinks, "
-                        "or answer “Nothing blinks”. About 3 to 5 minutes, no tools needed.")
+            "or answer “Nothing blinks”. About 3 to 5 minutes, no tools needed.",
+        )
         self.add(create)
-        start = Gtk.Button(label="Create a key map for this PC…", halign=Gtk.Align.START,
-                           css_classes=["suggested-action", "pill"])
+        start = Gtk.Button(
+            label="Create a key map for this PC…", halign=Gtk.Align.START, css_classes=["suggested-action", "pill"]
+        )
         start.connect("clicked", lambda *_: self.win.open_wizard())
         create.add(start)
 
         manage = Adw.PreferencesGroup(title="Manage")
         self.add(manage)
-        exp = plain_row("Export the active key map", subtitle="Share it for the same model",
-                            activatable=True)
+        exp = plain_row("Export the active key map", subtitle="Share it for the same model", activatable=True)
         exp.add_suffix(Gtk.Image(icon_name="document-save-symbolic"))
         exp.connect("activated", self._export)
         manage.add(exp)
-        imp = plain_row("Import a key map…", subtitle="Checked by the service before use",
-                            activatable=True)
+        imp = plain_row("Import a key map…", subtitle="Checked by the service before use", activatable=True)
         imp.add_suffix(Gtk.Image(icon_name="document-open-symbolic"))
         imp.connect("activated", self._import)
         manage.add(imp)
@@ -982,8 +1047,16 @@ class ProfilePage(Adw.PreferencesPage):
 
     def _profile_json(self):
         prof = self.layout.get("profile", {})
-        return json.dumps({"version": 1, "name": prof.get("name", "Profile"), "chassis": prof.get("chassis"),
-                           "method": prof.get("method", "blink"), "keys": key_ids(self.layout)}, indent=1)
+        return json.dumps(
+            {
+                "version": 1,
+                "name": prof.get("name", "Profile"),
+                "chassis": prof.get("chassis"),
+                "method": prof.get("method", "blink"),
+                "keys": key_ids(self.layout),
+            },
+            indent=1,
+        )
 
     def _export(self, *_):
         dialog = Gtk.FileDialog(initial_name="alienfx-profile.json")
@@ -995,6 +1068,7 @@ class ProfilePage(Adw.PreferencesPage):
                 return
             f.replace_contents(self._profile_json().encode(), None, False, Gio.FileCreateFlags.NONE, None)
             self.win.toast("Profile exported.")
+
         dialog.save(self.win, None, done)
 
     def _import(self, *_):
@@ -1003,14 +1077,18 @@ class ProfilePage(Adw.PreferencesPage):
         def done(d, res):
             try:
                 f = d.open_finish(res)
-                ok, data, _etag = f.load_contents(None)
+                _ok, data, _etag = f.load_contents(None)
             except GLib.Error:
                 return
             if len(data) > 32768:
                 self.win.toast("File too large for a profile.")
                 return
-            self.win.call("SaveProfile", GLib.Variant("(s)", (data.decode("utf-8", "replace"),)),
-                          lambda _r, e: e is None and self.win.toast("Profile imported and active."))
+            self.win.call(
+                "SaveProfile",
+                GLib.Variant("(s)", (data.decode("utf-8", "replace"),)),
+                lambda _r, e: e is None and self.win.toast("Profile imported and active."),
+            )
+
         dialog.open(self.win, None, done)
 
     def update(self, state):
@@ -1024,14 +1102,14 @@ class ProfileWizard(Adw.Window):
     BLINK_MS = 320
 
     def __init__(self, win, info, evdev_names):
-        super().__init__(transient_for=win, modal=True, title="New PC profile",
-                         default_width=1100, default_height=760)
+        super().__init__(transient_for=win, modal=True, title="New PC profile", default_width=1100, default_height=760)
         self.win, self.info, self.evdev_names = win, info, evdev_names
         self.templates = {t["id"]: t for t in info["templates"]}
-        self.assign = {}                    # key name -> [ids]
-        self.history = []                   # [(id, key name or None)]
+        self.assign = {}  # key name -> [ids]
+        self.history = []  # [(id, key name or None)]
         self.ids, self.pos = [], 0
         self.blink_on, self.timer = False, 0
+        self.template, self.board = None, None  # set when blinking starts
         self.live = False
         self.key_ctrl = None
 
@@ -1053,19 +1131,23 @@ class ProfileWizard(Adw.Window):
         intro = Adw.PreferencesGroup(
             title="Does it blink?",
             description="AlienFX LEDs will make every LED id blink white, one at a time, on a dark "
-                        "keyboard. Click the key that blinks on the drawing, or simply press it on "
-                        "your keyboard. If nothing lights up, answer “Nothing blinks”. Keys with an "
-                        "LED but no keycode (like Fn) must be clicked. While the wizard runs, it "
-                        "reads key presses in its own window only.")
+            "keyboard. Click the key that blinks on the drawing, or simply press it on "
+            "your keyboard. If nothing lights up, answer “Nothing blinks”. Keys with an "
+            "LED but no keycode (like Fn) must be clicked. While the wizard runs, it "
+            "reads key presses in its own window only.",
+        )
         page.add(intro)
         group = Adw.PreferencesGroup(title="Your machine")
         page.add(group)
         product = self.info.get("dmi_product") or "unknown"
         group.add(plain_row("Detected model", subtitle=product))
         tids = list(self.templates)
-        self.tpl_combo = Adw.ComboRow(title="Keyboard (chassis template)", model=Gtk.StringList.new(
-            [self.templates[t]["name"] + ("" if self.templates[t].get("verified") else " — derived")
-             for t in tids]))
+        self.tpl_combo = Adw.ComboRow(
+            title="Keyboard (chassis template)",
+            model=Gtk.StringList.new(
+                [self.templates[t]["name"] + ("" if self.templates[t].get("verified") else " — derived") for t in tids]
+            ),
+        )
         self.tpl_ids = tids
         match = [i for i, t in enumerate(tids) if product in (self.templates[t].get("dmi_product") or [])]
         if match:
@@ -1074,24 +1156,39 @@ class ProfileWizard(Adw.Window):
         self.name_row = Adw.EntryRow(title="Profile name")
         self.name_row.set_text(f"{product} (blink test)"[:60] if product != "unknown" else "My PC")
         group.add(self.name_row)
-        self.range_combo = Adw.ComboRow(title="LED ids to test", model=Gtk.StringList.new(
-            ["0 to 159 — recommended (≈ 3 min)", "0 to 254 — everything (≈ 5 min)"]))
+        self.range_combo = Adw.ComboRow(
+            title="LED ids to test",
+            model=Gtk.StringList.new(["0 to 159 — recommended (≈ 3 min)", "0 to 254 — everything (≈ 5 min)"]),
+        )
         group.add(self.range_combo)
-        start = Gtk.Button(label="Start blinking", halign=Gtk.Align.CENTER, margin_top=12,
-                           css_classes=["suggested-action", "pill"])
+        start = Gtk.Button(
+            label="Start blinking", halign=Gtk.Align.CENTER, margin_top=12, css_classes=["suggested-action", "pill"]
+        )
         start.connect("clicked", self._start)
         group.add(start)
         return page
 
     # --- step 2: blink ----------------------------------------------------------
     def _blink_page(self):
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
-                      margin_top=18, margin_bottom=18, margin_start=18, margin_end=18)
+        box = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=12,
+            margin_top=18,
+            margin_bottom=18,
+            margin_start=18,
+            margin_end=18,
+        )
         self.prompt = Gtk.Label(xalign=0, css_classes=["title-2"])
         box.append(self.prompt)
-        box.append(Gtk.Label(xalign=0, wrap=True, css_classes=["dim-label"],
-                             label="Look at your keyboard: one LED blinks white. Click that key below "
-                                   "or press it. Green keys are already mapped."))
+        box.append(
+            Gtk.Label(
+                xalign=0,
+                wrap=True,
+                css_classes=["dim-label"],
+                label="Look at your keyboard: one LED blinks white. Click that key below "
+                "or press it. Green keys are already mapped.",
+            )
+        )
         self.progress = Gtk.ProgressBar(show_text=True)
         box.append(self.progress)
         self.view = KeyboardView(Board({"width": 1, "height": 1, "keys": []}), mode="pick")
@@ -1099,17 +1196,18 @@ class ProfileWizard(Adw.Window):
         box.append(Gtk.Frame(child=self.view, css_classes=["view"]))
         self.last_label = Gtk.Label(xalign=0, css_classes=["monospace", "dim-label"])
         box.append(self.last_label)
-        bar = Gtk.Box(spacing=8)
-        back = Gtk.Button(child=Adw.ButtonContent(icon_name="go-previous-symbolic", label="Back"),
-                          tooltip_text="Undo the last answer")
+        buttons = Gtk.Box(spacing=8)
+        back = Gtk.Button(
+            child=Adw.ButtonContent(icon_name="go-previous-symbolic", label="Back"), tooltip_text="Undo the last answer"
+        )
         back.connect("clicked", self._back)
         nothing = Gtk.Button(label="Nothing blinks", css_classes=["pill"])
         nothing.connect("clicked", lambda *_: self._answer(None))
         finish = Gtk.Button(label="Finish now")
         finish.connect("clicked", lambda *_: self._to_review())
         for w in (back, Gtk.Box(hexpand=True), nothing, finish):
-            bar.append(w)
-        box.append(bar)
+            buttons.append(w)
+        box.append(buttons)
         return box
 
     def _start(self, *_):
@@ -1136,7 +1234,7 @@ class ProfileWizard(Adw.Window):
             self.stack.set_visible_child_name("setup")
             return
         self.live = True
-        self._send([(i, 0, 0, 0) for i in range(MAX_ID + 1)])      # dark keyboard
+        self._send([(i, 0, 0, 0) for i in range(MAX_ID + 1)])  # dark keyboard
         self._show_current()
         self.timer = GLib.timeout_add(self.BLINK_MS, self._blink)
 
@@ -1166,7 +1264,7 @@ class ProfileWizard(Adw.Window):
             self._to_review()
             return
         self.prompt.set_label(f"LED id {kid} is blinking — which key?")
-        self.view.set_cap_colors({name: (40, 170, 90) for name in self.assign})
+        self.view.set_cap_colors(dict.fromkeys(self.assign, (40, 170, 90)))
 
     def _answer(self, name):
         kid = self._current()
@@ -1194,9 +1292,10 @@ class ProfileWizard(Adw.Window):
         if name in self.board.caps:
             self._answer(name)
         else:
-            self.toasts.add_toast(Adw.Toast(title=f"Key {name or keycode} is not on this template; click it instead.",
-                                            timeout=2))
-        return True                          # the wizard swallows key presses (Esc included)
+            self.toasts.add_toast(
+                Adw.Toast(title=f"Key {name or keycode} is not on this template; click it instead.", timeout=2)
+            )
+        return True  # the wizard swallows key presses (Esc included)
 
     def _back(self, *_):
         if not self.history:
@@ -1231,8 +1330,12 @@ class ProfileWizard(Adw.Window):
         again = Gtk.Button(label="Back to blinking", halign=Gtk.Align.START, margin_top=6)
         again.connect("clicked", self._resume)
         actions.add(again)
-        save = Gtk.Button(label="Save and use this profile", halign=Gtk.Align.CENTER, margin_top=18,
-                          css_classes=["suggested-action", "pill"])
+        save = Gtk.Button(
+            label="Save and use this profile",
+            halign=Gtk.Align.CENTER,
+            margin_top=18,
+            css_classes=["suggested-action", "pill"],
+        )
         save.connect("clicked", self._save)
         actions.add(save)
         return page
@@ -1244,11 +1347,14 @@ class ProfileWizard(Adw.Window):
         if self._current() is not None:
             self._send([(self._current(), 0, 0, 0)])
         total = sum(len(v) for v in self.assign.values())
-        self.sum_mapped.set_subtitle(f"{len(self.assign)} keys, {total} LED ids "
-                                     f"(out of {self.pos} ids tested)")
-        self.sum_list.set_subtitle(", ".join(
-            f"{self.board.caps[n].legend or n} → {', '.join(map(str, v))}" for n, v in
-            sorted(self.assign.items(), key=lambda kv: kv[1][0])) or "nothing yet")
+        self.sum_mapped.set_subtitle(f"{len(self.assign)} keys, {total} LED ids (out of {self.pos} ids tested)")
+        self.sum_list.set_subtitle(
+            ", ".join(
+                f"{self.board.caps[n].legend or n} → {', '.join(map(str, v))}"
+                for n, v in sorted(self.assign.items(), key=lambda kv: kv[1][0])
+            )
+            or "nothing yet"
+        )
         missing = [c.legend or n for n, c in self.board.caps.items() if n not in self.assign]
         self.sum_missing.set_subtitle(", ".join(missing) or "none")
         self.stack.set_visible_child_name("review")
@@ -1278,12 +1384,18 @@ class ProfileWizard(Adw.Window):
                 frame += [(i, int(r * 255), int(g * 255), int(b * 255)) for i in self.assign[c.name]]
             self._send(frame)
             return GLib.SOURCE_CONTINUE
+
         GLib.timeout_add(50, step)
 
     def _save(self, *_):
         name = self.name_row.get_text().strip() or "My PC"
-        prof = {"version": 1, "name": name[:60], "chassis": self.template["id"], "method": "blink",
-                "keys": {n: sorted(v) for n, v in self.assign.items()}}
+        prof = {
+            "version": 1,
+            "name": name[:60],
+            "chassis": self.template["id"],
+            "method": "blink",
+            "keys": {n: sorted(v) for n, v in self.assign.items()},
+        }
 
         def done(_res, err):
             if err is not None:
@@ -1291,6 +1403,7 @@ class ProfileWizard(Adw.Window):
                 return
             self.win.toast(f"Profile “{name}” saved and active.")
             self.close()
+
         if not prof["keys"]:
             self.toasts.add_toast(Adw.Toast(title="No key mapped yet."))
             return
@@ -1323,8 +1436,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.pages = []
         self.last_state = None
         self.syncing = False
-        self.brightness_debounce = Debounce(150, lambda: self.call(
-            "SetBrightness", GLib.Variant("(y)", (int(self.brightness.get_value()),))))
+        self.brightness_debounce = Debounce(
+            150, lambda: self.call("SetBrightness", GLib.Variant("(y)", (int(self.brightness.get_value()),)))
+        )
 
         self.toasts = Adw.ToastOverlay()
         toolbar = Adw.ToolbarView()
@@ -1383,6 +1497,7 @@ class MainWindow(Adw.ApplicationWindow):
                     self.apply_state(self.last_state)
             if on_done:
                 on_done(res, err)
+
         self.client.call(method, params, done)
 
     def connect_daemon(self):
@@ -1394,6 +1509,7 @@ class MainWindow(Adw.ApplicationWindow):
                 self._set_available(False, detail=describe_error(err))
                 return
             self._load()
+
         self.client.connect(ready)
 
     def _load(self, rebuild=False):
@@ -1413,6 +1529,7 @@ class MainWindow(Adw.ApplicationWindow):
                 return
             self._set_available(True)
             self.apply_state(json.loads(res[0]))
+
         self.client.call("GetLayout", None, got_layout)
 
     def on_owner(self, present):
@@ -1434,7 +1551,8 @@ class MainWindow(Adw.ApplicationWindow):
             self.absent.set_description(
                 ("" if detail in (None, "The alienfixd service is not running.") else detail + "\n")
                 + f"{self.client.bus_label} bus, name {BUS_NAME}. "
-                "Check that the service is started (systemctl status alienfixd).")
+                "Check that the service is started (systemctl status alienfixd)."
+            )
             self.main.set_visible_child_name("absent")
 
     def _build_pages(self, layout):
@@ -1451,9 +1569,14 @@ class MainWindow(Adw.ApplicationWindow):
         if kb_type == "per-key":
             specs.append(("keyboard", "Keyboard", "input-keyboard-symbolic", KeyboardPage(self, board)))
         elif kb_type == "zones":
-            specs.append(("keyboard", "Keyboard", "input-keyboard-symbolic",
-                          ChassisPage(self, [z for z in zones if z.get("group") == "keyboard"],
-                                      title="Keyboard zones")))
+            specs.append(
+                (
+                    "keyboard",
+                    "Keyboard",
+                    "input-keyboard-symbolic",
+                    ChassisPage(self, [z for z in zones if z.get("group") == "keyboard"], title="Keyboard zones"),
+                )
+            )
         specs.append(("effects", "Effects", "starred-symbolic", EffectsPage(self, layout)))
         if chassis_zones:
             specs.append(("chassis", "Chassis", "computer-symbolic", ChassisPage(self, chassis_zones)))
@@ -1470,11 +1593,13 @@ class MainWindow(Adw.ApplicationWindow):
 
     def open_wizard(self):
         """Fetch the templates list and every template's geometry, then open the wizard."""
+
         def got(res, err):
             if err is not None:
                 return
             info = json.loads(res[0])
             self._fetch_templates(info, lambda: ProfileWizard(self, info, self.evdev_names).present())
+
         self.call("ListChassis", None, got)
 
     def _fetch_templates(self, info, then):
@@ -1482,7 +1607,7 @@ class MainWindow(Adw.ApplicationWindow):
         for d in (Path("/usr/local/share/alienfix/chassis"), Path(__file__).resolve().parent.parent / "data/chassis"):
             for p in d.glob("*.json") if d.is_dir() else []:
                 try:
-                    t = json.loads(p.read_text())
+                    t = json.loads(p.read_text(encoding="utf-8"))
                     self.chassis_templates.setdefault(t["id"], t)
                 except (OSError, ValueError, KeyError):
                     pass
@@ -1508,7 +1633,6 @@ class MainWindow(Adw.ApplicationWindow):
             self.call("SetEnabled", GLib.Variant("(b)", (switch.get_active(),)))
 
 
-
 class App(Adw.Application):
     def __init__(self, start_page):
         flags = Gio.ApplicationFlags.DEFAULT_FLAGS
@@ -1524,12 +1648,13 @@ class App(Adw.Application):
 
 def main(argv):
     parser = argparse.ArgumentParser(description=f"{APP_NAME}: lighting control")
-    parser.add_argument("--page", choices=PAGES, default=os.environ.get("ALIENFIX_START_PAGE", "keyboard"),
-                        help="page shown at start")
+    parser.add_argument(
+        "--page", choices=PAGES, default=os.environ.get("ALIENFIX_START_PAGE", "keyboard"), help="page shown at start"
+    )
     args, rest = parser.parse_known_args(argv[1:])
     GLib.set_prgname(APP_ID)
     GLib.set_application_name(APP_NAME)
-    return App(args.page).run([argv[0]] + rest)
+    return App(args.page).run([argv[0], *rest])
 
 
 if __name__ == "__main__":

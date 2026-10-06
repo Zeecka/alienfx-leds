@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_LOCKED: "1"            # fail if uv.lock is out of date with pyproject.toml
+
+jobs:
+  lint:
+    name: Lint (ruff, ty, pylint)
+    runs-on: ubuntu-24.04
+    env:
+      UV_PYTHON: /usr/bin/python3   # PyGObject builds against the system Python (headers from python3-dev)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Headers to build PyGObject
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgirepository-2.0-dev libcairo2-dev pkg-config python3-dev
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync
+      - name: ruff check
+        run: uv run --no-sync ruff check --output-format=github .
+      - name: ruff format
+        run: uv run --no-sync ruff format --check --diff .
+      - name: ty
+        run: uv run --no-sync ty check --output-format=github
+      - name: pylint
+        run: uv run --no-sync pylint src tests tools bin/alienfix bin/alienfixd gui/alienfx-leds
+
+  test:
+    name: Tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+      # The tests need no D-Bus and no GObject: skip building PyGObject and pycairo.
+      - run: uv sync --no-install-package pygobject --no-install-package pycairo
+      - run: uv run --no-sync python -m unittest discover -s tests -v
+
+  build:
+    name: Build and check the package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uv build
+      - run: uvx twine check --strict dist/*.whl dist/*.tar.gz
+      - name: Wheel installs and its commands start
+        run: |
+          uv venv /tmp/venv
+          uv pip install --python /tmp/venv --no-deps dist/*.whl
+          /tmp/venv/bin/python -c "import alienfix, alienfix.protocol, alienfix.effects; print(alienfix.__version__)"
+          test -x /tmp/venv/bin/alienfix && test -x /tmp/venv/bin/alienfixd
+
+  checks:
+    name: Shell, extension, data
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: ShellCheck
+        run: shellcheck install.sh uninstall.sh
+      - name: Workflows (actionlint, zizmor)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          uvx --from actionlint-py actionlint
+          uvx zizmor --format=github .github/workflows
+      - name: GNOME extension parses (ES module)
+        run: |
+          cp gnome-extension/alienfix@zeecka.github.io/extension.js "$RUNNER_TEMP/extension.mjs"
+          node --check "$RUNNER_TEMP/extension.mjs"
+          python3 -m json.tool gnome-extension/alienfix@zeecka.github.io/metadata.json > /dev/null
+      - name: D-Bus interface and polkit policy are well-formed XML
+        run: |
+          for f in data/io.github.zeecka.AlienFix1.xml data/system/*.conf data/system/*.policy; do
+            python3 -c "import sys, xml.dom.minidom as m; m.parse(sys.argv[1])" "$f"
+          done
+      - name: docs/supported-models.md is up to date
+        run: |
+          python3 tools/list_models.py
+          git diff --exit-code docs/supported-models.md

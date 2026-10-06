@@ -7,9 +7,14 @@
 **Keyboard and chassis lighting for Alienware and Dell machines on Linux.**<br>
 Per-key colors, effects, a typing ripple, and a toggle in GNOME Quick Settings, all driven by a small, locked-down service.
 
+[![CI](https://github.com/Zeecka/alienfx-leds/actions/workflows/ci.yml/badge.svg)](https://github.com/Zeecka/alienfx-leds/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Zeecka/alienfx-leds/actions/workflows/codeql.yml/badge.svg)](https://github.com/Zeecka/alienfx-leds/actions/workflows/codeql.yml)
+[![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json&style=flat-square)](https://github.com/astral-sh/ruff)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json&style=flat-square)](https://github.com/astral-sh/uv)<br>
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 ![Linux](https://img.shields.io/badge/platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)
-![Python 3](https://img.shields.io/badge/python-3-3776AB?style=flat-square&logo=python&logoColor=white)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)
 ![GTK 4 + libadwaita](https://img.shields.io/badge/GTK%204-libadwaita-4A86CF?style=flat-square&logo=gnome&logoColor=white)
 ![GNOME 46](https://img.shields.io/badge/GNOME%20Shell-46-4A86CF?style=flat-square&logo=gnome&logoColor=white)<br>
 ![Verified: Alienware m15 R7](https://img.shields.io/badge/verified-Alienware%20m15%20R7-2ea44f?style=flat-square)
@@ -170,11 +175,46 @@ Only facts were taken from them (USB ids, light indices and masks, zone names), 
 
 ## 🛠️ Development
 
+The project uses [uv](https://docs.astral.sh/uv/). PyGObject needs its build headers
+(`sudo apt install libgirepository-2.0-dev libcairo2-dev pkg-config python3-dev`), or skip it with
+`uv sync --no-install-package pygobject --no-install-package pycairo`: only the service and the app need it, not the tests.
+
 ```sh
-python3 -m unittest discover -s tests                      # validation, encoders, models, ripple
-MOCK_MODEL=dell-g15-5520 python3 tests/mock_daemon.py &    # the real service, fake hardware, session bus
-ALIENFIX_BUS=session gui/alienfx-leds                      # the app against it
+uv sync                                                     # dev tools: ruff, ty, pylint
+uv run python -m unittest discover -s tests                 # validation, encoders, models, ripple
+uv run ruff check . && uv run ruff format --check .         # lint and format
+uv run ty check                                             # types
+uv run pylint src tests tools bin/alienfix bin/alienfixd gui/alienfx-leds
+
+MOCK_MODEL=dell-g15-5520 python3 tests/mock_daemon.py &     # the real service, fake hardware, session bus
+ALIENFIX_BUS=session gui/alienfx-leds                       # the app against it
 ```
+
+Every push and pull request runs these checks in [CI](.github/workflows/ci.yml), plus ShellCheck,
+actionlint, zizmor, the GNOME extension and the data files; [CodeQL](.github/workflows/codeql.yml)
+scans the Python and JavaScript code weekly. Dependabot keeps the actions and tools up to date.
+
+<details>
+<summary><b>Releasing</b></summary>
+
+1. Bump `version` in `pyproject.toml` and `__version__` in `src/alienfix/__init__.py`, commit.
+2. Tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
+
+The [release workflow](.github/workflows/release.yml) then builds the sdist and wheel, creates the
+GitHub release, attaches a signed [SLSA level 3](https://slsa.dev) provenance (`alienfx-leds.intoto.jsonl`),
+and publishes to PyPI with Trusted Publishing (no token) and PEP 740 attestations. Verify a download with
+[slsa-verifier](https://github.com/slsa-framework/slsa-verifier):
+
+```sh
+slsa-verifier verify-artifact alienfx_leds-0.2.0-py3-none-any.whl \
+  --provenance-path alienfx-leds.intoto.jsonl --source-uri github.com/Zeecka/alienfx-leds --source-tag v0.2.0
+```
+
+One-time setup: on PyPI, add a trusted publisher for `alienfx-leds` (repository `Zeecka/alienfx-leds`,
+workflow `release.yml`, environment `pypi`), and create the `pypi` environment in the repository settings.
+The provenance goes to the public Rekor transparency log, so the generator only runs on a public repository.
+
+</details>
 
 <details>
 <summary><b>Repository layout</b></summary>
@@ -188,6 +228,7 @@ ALIENFIX_BUS=session gui/alienfx-leds                      # the app against it
 | [`data/models/`](data/models) | One file per machine model |
 | [`data/chassis/`](data/chassis), [`data/profiles/`](data/profiles) | Keyboard geometry, and the shipped key maps |
 | [`tests/`](tests) | Unit tests and the mock service |
+| [`.github/`](.github) | CI, CodeQL, release (SLSA, PyPI), Dependabot |
 
 </details>
 

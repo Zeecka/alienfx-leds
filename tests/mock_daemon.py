@@ -17,6 +17,7 @@ Environment:
                     fed with struct input_event records) instead of the
                     built-in keyboard, which a user cannot open anyway.
 """
+
 import logging
 import os
 import sys
@@ -29,7 +30,7 @@ sys.path.insert(0, str(ROOT / "src"))
 os.environ.setdefault("ALIENFIX_DATA", str(ROOT / "data"))
 os.environ["STATE_DIRECTORY"] = tempfile.mkdtemp(prefix="alienfix-mock-")
 
-from alienfix import daemon, models  # noqa: E402
+from alienfix import daemon, models
 
 MODEL = os.environ.get("MOCK_MODEL", "alienware-m15-r7")
 FAST = os.environ.get("MOCK_FAST") == "1"
@@ -46,8 +47,13 @@ class FakeHardware:
         m = catalog.get(MODEL)
         ctrls = {z["controller"] for z in m["zones"]} if m else {"elc"}
         per_key = (m or {"keyboard": {"type": "per-key"}})["keyboard"]["type"] == "per-key"
-        self._presence = {"keyboard": per_key, "elc": "elc" in ctrls, "legacy": "legacy" in ctrls,
-                          "wmi": "wmi" in ctrls, "usb": (m or {}).get("usb", [])}
+        self._presence = {
+            "keyboard": per_key,
+            "elc": "elc" in ctrls,
+            "legacy": "legacy" in ctrls,
+            "wmi": "wmi" in ctrls,
+            "usb": (m or {}).get("usb", []),
+        }
         self.frames = 0
 
     def presence(self):
@@ -103,7 +109,7 @@ class MockDaemon(daemon.Daemon):
     def _on_key_press(self, code):
         super()._on_key_press(code)
         self.key_log += 1
-        log.info("key press #%d -> ripple", self.key_log)     # the count only, like the real one
+        log.info("key press #%d -> ripple", self.key_log)  # the count only, like the real one
 
     def _on_call(self, conn, sender, path, iface, method, params, inv):
         if DENY and method not in daemon.READ_ONLY:
@@ -114,12 +120,12 @@ class MockDaemon(daemon.Daemon):
 
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)s", stream=sys.stdout)
-    daemon.Hardware = FakeHardware
+    setattr(daemon, "Hardware", FakeHardware)  # noqa: B010  (a test double, on purpose)
     catalog = models.load(ROOT / "data" / "models")
     dmi = (catalog[MODEL]["dmi_product"] or [""])[0] if MODEL in catalog else "Mock PC"
-    daemon.Daemon.dmi_product = staticmethod(lambda: dmi)
+    setattr(daemon.Daemon, "dmi_product", staticmethod(lambda: dmi))  # noqa: B010
     if MODEL in catalog and not catalog[MODEL]["dmi_product"] and not catalog[MODEL].get("usb"):
-        Path(os.environ["STATE_DIRECTORY"], "model").write_text(MODEL)
+        Path(os.environ["STATE_DIRECTORY"], "model").write_text(MODEL, encoding="utf-8")
     MockDaemon("session").run()
 
 

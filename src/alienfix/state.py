@@ -1,26 +1,27 @@
 """Persistent lighting state (the daemon's source of truth)."""
+
 import copy
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 from . import validate
 
-DEFAULT = {
+DEFAULT: dict[str, Any] = {
     "enabled": True,
     "brightness": 80,
     "keyboard": {
         "mode": "static",
-        "keys": {},                       # {id: [r, g, b]}; missing ids use "base"
+        "keys": {},  # {id: [r, g, b]}; missing ids use "base"
         "base": [0, 90, 255],
         "effect": {"name": "wave", "tempo": 5, "c1": [0, 90, 255], "c2": [255, 0, 160]},
     },
-    "zones": {},                          # {zone id: [r, g, b]}, zone ids come from the model
+    "zones": {},  # {zone id: [r, g, b]}, zone ids come from the model
     # per zone: {"name": static|pulse|morph, "tempo", "c2"}; c1 is zones[zone]
     "zone_effects": {},
     # typing ripple (per-key keyboards): off by default, it reads key presses
-    "ripple": {"enabled": False, "color": [255, 110, 0], "speed": 10, "under": "effect",
-               "background": [0, 0, 25]},
+    "ripple": {"enabled": False, "color": [255, 110, 0], "speed": 10, "under": "effect", "background": [0, 0, 25]},
 }
 ZONE_COLOR = [0, 90, 255]
 
@@ -33,10 +34,10 @@ class State:
     def __init__(self, path, key_ids, zone_ids):
         self.path = Path(path)
         self.key_ids = sorted(key_ids)
-        self.data = copy.deepcopy(DEFAULT)
+        self.data: dict[str, Any] = copy.deepcopy(DEFAULT)
         self.set_zones(zone_ids)
         try:
-            saved = json.loads(self.path.read_text())
+            saved = json.loads(self.path.read_text(encoding="utf-8"))
             self._merge(saved)
         except (OSError, ValueError):
             pass
@@ -64,20 +65,28 @@ class State:
             if k.isdigit() and int(k) in self.key_ids and _rgb(v):
                 d["keyboard"]["keys"][k] = list(v)
         eff = kb.get("effect") or {}
-        if eff.get("name") in validate.EFFECTS and _tempo(eff.get("tempo")) \
-                and _rgb(eff.get("c1")) and _rgb(eff.get("c2")):
+        if (
+            eff.get("name") in validate.EFFECTS
+            and _tempo(eff.get("tempo"))
+            and _rgb(eff.get("c1"))
+            and _rgb(eff.get("c2"))
+        ):
             d["keyboard"]["effect"] = {k: eff[k] for k in ("name", "tempo", "c1", "c2")}
         for z, v in (saved.get("zones") or {}).items():
             if z in d["zones"] and _rgb(v):
                 d["zones"][z] = list(v)
         for z, e in (saved.get("zone_effects") or {}).items():
-            if z in d["zone_effects"] and isinstance(e, dict) and e.get("name") in validate.ZONE_EFFECTS \
-                    and _tempo(e.get("tempo")) and _rgb(e.get("c2")):
+            if (
+                z in d["zone_effects"]
+                and isinstance(e, dict)
+                and e.get("name") in validate.ZONE_EFFECTS
+                and _tempo(e.get("tempo"))
+                and _rgb(e.get("c2"))
+            ):
                 d["zone_effects"][z] = {"name": e["name"], "tempo": e["tempo"], "c2": list(e["c2"])}
         rp = saved.get("ripple") or {}
         try:
-            d["ripple"] = validate.ripple(rp["enabled"], rp["color"], rp["speed"], rp["under"],
-                                          rp["background"])
+            d["ripple"] = validate.ripple(rp["enabled"], rp["color"], rp["speed"], rp["under"], rp["background"])
         except (KeyError, TypeError, validate.Invalid):
             pass
 
@@ -86,15 +95,15 @@ class State:
         return {i: tuple(kb["keys"].get(str(i), kb["base"])) for i in self.key_ids}
 
     def save(self):
-        tmp = self.path.with_suffix(".tmp")       # atomic: a crash never leaves half a file
-        tmp.write_text(json.dumps(self.data, indent=1))
+        tmp = self.path.with_suffix(".tmp")  # atomic: a crash never leaves half a file
+        tmp.write_text(json.dumps(self.data, indent=1), encoding="utf-8")
         os.replace(tmp, self.path)
 
     def public(self, live, presence, per_key=True):
         d = copy.deepcopy(self.data)
         d["live"] = live
         d["devices"] = presence
-        d["ripple"]["available"] = per_key          # the ripple needs a per-key keyboard
+        d["ripple"]["available"] = per_key  # the ripple needs a per-key keyboard
         return json.dumps(d)
 
 

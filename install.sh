@@ -35,7 +35,7 @@ put 0644 data/io.github.zeecka.AlienFix.desktop        /usr/local/share/applicat
 put 0644 data/icons/io.github.zeecka.AlienFix.svg      /usr/local/share/icons/hicolor/scalable/apps/io.github.zeecka.AlienFix.svg
 
 # GNOME Shell extension, per user (owned by the user, like any user extension)
-for f in gnome-extension/$EXT_UUID/*; do
+for f in "gnome-extension/$EXT_UUID"/*; do
     install -D -m 0644 -o "$USER_NAME" -g "$USER_NAME" "$f" "$EXT_DIR/$(basename "$f")"
     echo "$EXT_DIR/$(basename "$f")" >>"$MAN.new"
 done
