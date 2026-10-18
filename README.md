@@ -16,7 +16,7 @@ Per-key colors, effects, a typing ripple, and a toggle in GNOME Quick Settings, 
 ![Linux](https://img.shields.io/badge/platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)
 ![GTK 4 + libadwaita](https://img.shields.io/badge/GTK%204-libadwaita-4A86CF?style=flat-square&logo=gnome&logoColor=white)
-![GNOME 46](https://img.shields.io/badge/GNOME%20Shell-46-4A86CF?style=flat-square&logo=gnome&logoColor=white)<br>
+![GNOME 46–50](https://img.shields.io/badge/GNOME%20Shell-46--50-4A86CF?style=flat-square&logo=gnome&logoColor=white)<br>
 ![Verified: Alienware m15 R7](https://img.shields.io/badge/verified-Alienware%20m15%20R7-2ea44f?style=flat-square)
 ![49 community models](https://img.shields.io/badge/community%20models-49-orange?style=flat-square)
 ![No raw device access](https://img.shields.io/badge/raw%20HID%20access-none-brightgreen?style=flat-square)
@@ -100,7 +100,7 @@ sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1
 ./install.sh        # asks for sudo
 ```
 
-**3. Enable the Quick Settings toggle** (GNOME 46). On X11, reload the shell with <kbd>Alt</kbd>+<kbd>F2</kbd>, `r`, <kbd>Enter</kbd>; on Wayland, log out and back in. Then:
+**3. Enable the Quick Settings toggle** (GNOME 46 to 50). On X11 (GNOME 49 and older), reload the shell with <kbd>Alt</kbd>+<kbd>F2</kbd>, `r`, <kbd>Enter</kbd>; on Wayland, log out and back in. Then:
 
 ```sh
 gnome-extensions enable alienfix@zeecka.github.io

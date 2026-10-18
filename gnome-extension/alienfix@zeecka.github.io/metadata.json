@@ -3,6 +3,10 @@
   "name": "AlienFX LEDs",
   "description": "Keyboard and chassis lighting for Alienware laptops from Quick Settings: on/off, brightness and effects, through the alienfixd system service.",
   "shell-version": [
-    "46"
+    "46",
+    "47",
+    "48",
+    "49",
+    "50"
   ]
 }
