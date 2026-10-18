@@ -12,7 +12,7 @@ from typing import ClassVar
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from alienfix import devices, models, protocol, validate
+from alienfix import devices, effects, models, protocol, validate
 from alienfix.state import State
 
 M15_PROFILE = ROOT / "data/profiles/alienware-m15-r7-azerty.json"
@@ -183,7 +183,7 @@ class Profiles(unittest.TestCase):
 
 
 class Effects(unittest.TestCase):
-    from alienfix import effects as E
+    E = effects
 
     POS: ClassVar[dict] = {0: (0.5, 0.25), 1: (8.0, 2.0), 2: (15.5, 5.0)}
 
@@ -230,7 +230,7 @@ class Effects(unittest.TestCase):
 
 
 class Ripple(unittest.TestCase):
-    from alienfix import effects as E
+    E = effects
     from alienfix import keycodes as K
 
     def test_speed_sets_where_the_ring_is(self):
@@ -314,7 +314,7 @@ class Ripple(unittest.TestCase):
 
 class ZoneEffects(unittest.TestCase):
     def test_zone_effect_validation(self):
-        for bad in (("rainbow", 5), ("pulse", 0), ("pulse;x", 5), ("", 5)):
+        for bad in (("plasma", 5), ("pulse", 0), ("pulse;x", 5), ("", 5)):
             with self.assertRaises(validate.Invalid):
                 validate.zone_effect(bad[0], bad[1], (1, 2, 3), (4, 5, 6))
         e = validate.zone_effect("morph", 5, (1, 2, 3), (4, 5, 6))
@@ -322,10 +322,11 @@ class ZoneEffects(unittest.TestCase):
 
     def test_zone_action_bytes(self):
         acts = protocol.v4_actions({"name": "morph", "tempo": 5, "c1": (1, 2, 3), "c2": (4, 5, 6)})
-        self.assertEqual(acts, [[2, 7, 0xCF, 0, 40, 1, 2, 3], [2, 7, 0xCF, 0, 40, 4, 5, 6]])
+        # 6 s loop (2 periods of 3 s): two 3000 ms steps, tempo 300 capped at 250
+        self.assertEqual(acts, [[2, 0x0B, 0xB8, 0, 250, 1, 2, 3], [2, 0x0B, 0xB8, 0, 250, 4, 5, 6]])
         out = protocol.elc_zone_effects([(3, {"name": "pulse", "tempo": 2, "c1": (9, 9, 9), "c2": (0, 0, 0)})])
         self.assertEqual(out[2][:7].hex(" "), "00 03 23 01 00 01 03")
-        self.assertEqual(out[3][:11].hex(" "), "00 03 24 01 07 dc 00 10 09 09 09")
+        self.assertEqual(out[3][:11].hex(" "), "00 03 24 01 04 b0 00 78 09 09 09")  # 1200 ms, tempo 120
         self.assertTrue(all(len(r) == 34 for r in out))
 
     def test_power_static_unchanged_and_effect_used_for_every_state(self):
@@ -335,6 +336,52 @@ class ZoneEffects(unittest.TestCase):
         )
         fx = protocol.elc_power((10, 20, 30), {"name": "pulse", "tempo": 7, "c1": (10, 20, 30), "c2": (0, 0, 0)})
         self.assertEqual(sum(1 for r in fx if r[2] == 0x24 and r[3] == 1), 6)
+
+    def test_keyboard_effects_become_chassis_loops(self):
+        red, blue = (255, 0, 0), (0, 0, 255)
+        self.assertIsNone(effects.chassis_frames("pulse", red, blue))
+        self.assertIsNone(effects.chassis_loop("gradient", 5))
+        breath = effects.chassis_frames("breathing", red, blue)
+        self.assertEqual(breath[0], (0, 0, 0))  # starts dark, like the keyboard's breathing
+        self.assertEqual(breath[3], red)
+        wheel = effects.chassis_frames("spectrum", red, blue)
+        self.assertEqual(wheel[:3], [red, (255, 255, 0), (0, 255, 0)])
+        rainbow = effects.chassis_frames("rainbow", red, blue)
+        self.assertEqual(rainbow[:3], [red, (255, 0, 255), blue])  # the hue runs backwards, like on the keyboard
+        opposite = effects.chassis_frames("rainbow", red, blue, offset=0.5)
+        self.assertEqual(opposite[0], (0, 255, 255))
+        self.assertEqual(effects.chassis_frames("gradient", red, blue, place=1.0), [blue])
+        for name in effects.CHASSIS:
+            frames = effects.chassis_frames(name, red, blue, offset=0.37, seed=3)
+            self.assertTrue(1 <= len(frames) <= effects.CHASSIS_STEPS, name)
+
+    def test_keyboard_right_edge_matches_the_chassis(self):
+        pos = {0: (0.5, 0.5), 1: (9.0, 0.5), 2: (17.5, 3.5)}
+        for name in ("rainbow", "breathing", "spectrum", "morph"):
+            loop = effects.chassis_loop(name, 8)
+            frames = effects.chassis_frames(name, (255, 0, 0), (0, 0, 255))
+            for j, frame in enumerate(frames):
+                t = j * loop / effects.CHASSIS_STEPS
+                kb = effects.any_renderer(name)(pos, 18, t, 8, (255, 0, 0), (0, 0, 255))
+                self.assertTrue(all(abs(a - b) <= 1 for a, b in zip(kb[2], frame, strict=True)), (name, j))
+
+    def test_long_loops_span_several_packets(self):
+        frames = effects.chassis_frames("rainbow", (0, 0, 0), (0, 0, 0))
+        fx = {"name": "rainbow", "tempo": 8, "c1": (0, 0, 0), "c2": (0, 0, 0), "frames": frames}
+        fx["loop"] = effects.chassis_loop("rainbow", 8)
+        acts = protocol.v4_actions(fx)
+        # 6 x 800 ms = 4.8 s = the keyboard's period; tempo = duration / 10, like AWCC
+        self.assertEqual([a[1:5] for a in acts], [[0x03, 0x20, 0, 80]] * 6)
+        out = protocol.elc_zone_effects([(0, fx)])
+        self.assertEqual([r[2] for r in out], [0x21, 0x21, 0x23, 0x24, 0x24, 0x21])
+        self.assertEqual(out[4][3:11].hex(" "), "02 03 20 00 50 00 ff ff")  # 4th keyframe: cyan
+        power = protocol.elc_power((0, 0, 0), fx)
+        self.assertEqual(power[4][3:8].hex(" "), "02 00 70 00 0b")  # the button runs ~7x slower: 112 ms, 11
+        self.assertEqual(len(power), 2 + 6 * 6)
+        one = protocol.v4_actions(
+            {"name": "gradient", "tempo": 6, "c1": (0, 0, 0), "c2": (0, 0, 0), "frames": [(1, 2, 3)]}
+        )
+        self.assertEqual(one, [[0, 7, 0xD0, 0, 0xFA, 1, 2, 3]])
 
     def test_hostile_state_file_effect_names_are_ignored(self):
         with tempfile.TemporaryDirectory() as d:
@@ -405,7 +452,8 @@ class Models(unittest.TestCase):
                 models.check(bad)
 
     def test_zone_effects_follow_the_controller(self):
-        self.assertEqual(models.zone_effects({"controller": "elc"}), ("static", "pulse", "morph"))
+        self.assertEqual(models.zone_effects({"controller": "elc"})[:3], ("static", "pulse", "morph"))
+        self.assertIn("rainbow", models.zone_effects({"controller": "elc"}))
         self.assertEqual(models.zone_effects({"controller": "wmi"}), ("static",))
         with self.assertRaises(validate.Invalid):
             validate.zone_effect("pulse", 5, (1, 2, 3), (4, 5, 6), ("static",))

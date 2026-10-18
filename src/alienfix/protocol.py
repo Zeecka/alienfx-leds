@@ -104,63 +104,73 @@ def elc_zone_colors(pairs):
 
 
 # Chassis actions (AlienFX-SDK SetV4Action): colorSel 0x23 on a light index,
-# then colorSet 0x24 with up to 3 actions of 8 bytes:
-#   [type, time, opcode, 0, tempo, R, G, B]   type 0 color / 1 pulse / 2 morph
+# then colorSet 0x24 with up to 3 actions of 8 bytes, repeated for more:
+#   [type, duration ms (16-bit BE), tempo (16-bit BE), R, G, B]
+#   type 0 color / 1 pulse / 2 morph
+# The SDK calls the duration bytes "time" and "opcode" (07 d0, 07 dc, 07 cf):
+# they are 2000 ms and so on, as OpenRGB decodes AWCC traces; AWCC sends
+# tempo = duration / 10, between 100 and 250 (static: 2000 ms, tempo 250).
+# Measured here (2026-10-07): a 2-step morph of 207 ms steps loops in 0.42 s
+# on the lid logo, while the very same actions on the power button loop in
+# 3.0 s: power steps are scaled down by POWER_SLOWDOWN.
 # Static color is the sequence measured on camera (power button, 13:16-13:50).
-# Pulse and morph: measured on the lid logo and the rear strip (2026-09-27);
-# on the power button they are sent the same way but were not seen.
+# Other effects are morph loops through keyframes (effects.chassis_frames).
 ZONE_EFFECTS = ("static", "pulse", "morph")
-_OPCODE = {"static": (0, 0xD0), "pulse": (1, 0xDC), "morph": (2, 0xCF)}
-_PHASE_TIME = 0x07
+ACTIONS_PER_PACKET = 3
+ELC_COMMAND_TIME = 0.064  # s per command, measured
+POWER_SLOWDOWN = 3.0 / 0.42  # measured once, on the m15 R7
+TEMPO_RANGE = (15, 250)  # AWCC: 100..250; OpenRGB goes down to 15 for spectrum
 
 
-def _tempo_byte(tempo):
-    """UI tempo 1..30 (larger = slower, like the keyboard) -> controller tempo."""
-    return max(1, min(0xF0, tempo * 8))
+def _action(kind, ms, rgb, slowdown=1.0):
+    tempo = max(1, round(min(TEMPO_RANGE[1], max(TEMPO_RANGE[0], ms / 10)) / slowdown))
+    ms = max(1, min(0xFFFF, round(ms / slowdown)))
+    return [kind, ms >> 8, ms & 0xFF, tempo >> 8, tempo & 0xFF, *rgb]
 
 
-def v4_actions(effect):
-    """effect: {"name", "tempo", "c1", "c2"} -> list of 8-byte action records."""
-    kind, op = _OPCODE[effect["name"]]
-    if effect["name"] == "static":
-        return [[0x00, _PHASE_TIME, 0xD0, 0x00, 0xFA, *effect["c1"]]]
-    tb = _tempo_byte(effect["tempo"])
-    acts = [[kind, _PHASE_TIME, op, 0x00, tb, *effect["c1"]]]
-    if effect["name"] == "morph":
-        acts.append([kind, _PHASE_TIME, op, 0x00, tb, *effect["c2"]])
-    return acts
+def v4_actions(effect, slowdown=1.0):
+    """effect: {"name", "tempo", "c1", "c2"[, "frames", "loop"]} -> 8-byte action
+    records. "frames": the keyframes of a looped morph lasting "loop" seconds
+    (one frame = a static color). slowdown: POWER_SLOWDOWN for the power button."""
+    frames = effect.get("frames")
+    if effect["name"] == "static" or (frames and len(frames) == 1):
+        return [[0x00, 0x07, 0xD0, 0x00, 0xFA, *(frames[0] if frames else effect["c1"])]]  # 2000 ms, 250
+    loop = effect.get("loop") or 0.6 * effect["tempo"] * (1 if effect["name"] == "pulse" else 2)
+    if effect["name"] == "pulse":
+        return [_action(1, loop * 1000, effect["c1"], slowdown)]
+    frames = frames or [effect["c1"], effect["c2"]]
+    return [_action(2, loop * 1000 / len(frames), c, slowdown) for c in frames]
 
 
-def _color_set(actions):
-    return _elc(0x03, 0x24, *[b for a in actions[:3] for b in a])
+def _color_sets(actions):
+    return [
+        _elc(0x03, 0x24, *[b for a in actions[i : i + ACTIONS_PER_PACKET] for b in a])
+        for i in range(0, len(actions), ACTIONS_PER_PACKET)
+    ]
 
 
 def elc_zone_effects(items):
     """Animated non-power zones. items: [(zone_id, effect)]."""
     out = [_control(0x04), _control(0x01)]
     for zid, effect in items:
-        out += [_elc(0x03, 0x23, 0x01, 0x00, 0x01, zid), _color_set(v4_actions(effect))]
+        out += [_elc(0x03, 0x23, 0x01, 0x00, 0x01, zid), *_color_sets(v4_actions(effect))]
     out.append(_control(0x03))
     return out
 
 
 def elc_power(rgb, effect=None, index=POWER_INDEX):
     """Program the power button for every power state (32 commands, ~2 s:
-    the controller takes 64 ms per command). Static color measured at 13:50;
-    an effect (pulse/morph) reuses the same frame, not camera-verified."""
-    r, g, b = rgb
-    color_set = (
-        _elc(0x03, 0x24, 0x00, 0x07, 0xD0, 0x00, 0xFA, r, g, b)
-        if effect is None or effect["name"] == "static"
-        else _color_set(v4_actions(effect))
-    )
+    the controller takes 64 ms per command; 6 more for a 6-keyframe loop).
+    Static color measured at 13:50; effects reuse the same frame, not
+    camera-verified."""
+    color_sets = _color_sets(v4_actions(effect or {"name": "static", "c1": rgb}, POWER_SLOWDOWN))
     out = [_control(0x03)]
     for state in POWER_STATES:
         out += [
             _elc(0x03, 0x22, 0x00, 0x04, 0x00, state),  # remove
             _elc(0x03, 0x22, 0x00, 0x01, 0x00, state),  # start
             _elc(0x03, 0x23, 0x01, 0x00, 0x01, index),
-            color_set,
+            *color_sets,
             _elc(0x03, 0x22, 0x00, 0x02, 0x00, state),  # finish + save
         ]
     out.append(_control(0x05))  # play

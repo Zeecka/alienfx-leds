@@ -9,7 +9,8 @@ from . import effects, protocol
 
 # keyboard: static, hardware effects (firmware), software effects (daemon-rendered)
 EFFECTS = ("static", *protocol.EFFECTS, *effects.SOFTWARE)
-ZONE_EFFECTS = protocol.ZONE_EFFECTS
+# chassis zones: the controller's own actions, then keyframe loops it runs alone
+ZONE_EFFECTS = (*protocol.ZONE_EFFECTS, *effects.CHASSIS)
 MAX_KEYS = 255
 
 

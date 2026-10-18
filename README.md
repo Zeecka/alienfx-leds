@@ -38,7 +38,7 @@ Per-key colors, effects, a typing ripple, and a toggle in GNOME Quick Settings, 
 |---|---|
 | ⌨️ **Per-key colors** | The keyboard drawn to scale from its real geometry. Click or Ctrl/Shift-click keys, pick a color, apply. |
 | 🌈 **Effects** | 5 firmware effects (breathing, wave, pulse, two-color pulse, sweep) plus 5 rendered by the service (rainbow, spectrum, color morph, starlight, gradient). One effect can go to any mix of keyboard and chassis lights. |
-| 💡 **Chassis lights** | Power button, lid logo, rear light strip: static color, pulse, morph. The power button keeps its color asleep and off. |
+| 💡 **Chassis lights** | Power button, lid logo, rear lights: the same effects as the keyboard (rainbow, breathing, wave…), run by the chassis controller itself and in step with the keyboard. The power button keeps its color asleep and off. |
 | 💧 **Typing ripple** | A ring of color from every key you press, over the current effect or a plain color. Adjustable color and speed (2 to 40 keys per second). |
 | 🎛️ **Quick Settings** | On/off, brightness, presets and the ripple, straight from the GNOME panel. |
 | 🖥️ **Command line** | `alienfix` does everything the app does, for scripts. |
@@ -74,7 +74,7 @@ Per-key colors, effects, a typing ripple, and a toggle in GNOME Quick Settings, 
 
 | Controller | USB | What it drives |
 |---|---|---|
-| AW-ELC (“API v4”) | `187c:0550`, `187c:0551` | Chassis lights and 4-zone keyboards: static color, pulse, morph. Power buttons are programmed for every power state. |
+| AW-ELC (“API v4”) | `187c:0550`, `187c:0551` | Chassis lights and 4-zone keyboards: static color, pulse, morph, and every other effect as a color loop the controller runs. Power buttons are programmed for every power state. |
 | Darfon per-key keyboard (“API v5”) | `0d62:*`, FEATURE report `0xCC` | Per-key colors, 5 firmware effects, 5 effects rendered by the service, hardware dimmer, live mode, typing ripple. |
 | Legacy AlienFX (“API v2/v3”) | `187c:0511`..`0530` | Zone masks, static color. |
 | Kernel `alienware-wmi` | `rgb_zones` sysfs | Pre-2018 desktops (X51, Alpha): static color. |
@@ -138,6 +138,7 @@ alienfix color '#0050ff'                         # whole keyboard
 alienfix keys ESC=#ff0000 Q=#00ff00              # per key (names from `alienfix layout`)
 alienfix effect wave --tempo 5 '#ff0000' '#0000ff'
 alienfix zone lid pulse --tempo 6 '#ff0000'      # zone ids from `alienfix zones`
+alienfix zone rear0 rainbow --tempo 8            # any effect works on AW-ELC zones
 alienfix model dell-g15-5520 | auto
 alienfix brightness 60 | on | off
 ```

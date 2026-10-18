@@ -47,7 +47,8 @@
    "controller": "elc",
    "index": 1,
    "group": "chassis",
-   "verified": true
+   "verified": true,
+   "rainbow_phase": 0.5
   }
  ]
 }

@@ -13,6 +13,8 @@ import math
 import random
 
 SOFTWARE = ("rainbow", "spectrum", "morph", "starlight", "gradient")
+# firmware effects drawn here anyway, on the chassis' clock (see chassis_frames)
+SYNCED = ("breathing", "pulse")
 ANIMATED = {"rainbow", "spectrum", "morph", "starlight"}  # gradient is static
 
 
@@ -31,8 +33,9 @@ def _hue(h):
 
 
 def rainbow(pos, width, t, tempo, c1=None, c2=None):
-    p = period(tempo)
-    return {i: _hue(u / width - t / p) for i, (u, v) in pos.items()}
+    """Moves right; the rightmost key has the hue -t / p, like the chassis."""
+    p, right = period(tempo), max((u for u, _v in pos.values()), default=0)
+    return {i: _hue((u - right) / width - t / p) for i, (u, v) in pos.items()}
 
 
 def spectrum(pos, width, t, tempo, c1=None, c2=None):
@@ -127,6 +130,69 @@ LOOKALIKE = {"breathing": breathing, "wave": wave, "pulse": pulse, "mixpulse": m
 def any_renderer(name):
     """Renderer for any keyboard effect: software, or a firmware look-alike."""
     return renderer(name) if name in SOFTWARE else LOOKALIKE[name]
+
+
+# Chassis zones (AW-ELC): at 64 ms per command they cannot be streamed, so
+# every keyboard effect the controller lacks becomes a loop of keyframes the
+# controller morphs through on its own (protocol.v4_actions). The loops last
+# as long as the keyboard's (chassis_loop) and are sampled from the same
+# clock: every zone shows the color of the keyboard's right edge at the same
+# instant. A zone's offset (a fraction of the loop) makes up for the time its
+# loop started away from the shared clock, plus its rainbow_phase if any.
+CHASSIS = ("breathing", "wave", "mixpulse", "nightrider", "rainbow", "spectrum", "starlight", "gradient")
+CHASSIS_STEPS = 6  # keyframes; 6 hues make an exact RGB hue wheel
+# keyboard periods per loop: same formulas as the renderers above
+LOOP_PERIODS = {
+    "rainbow": 1,
+    "pulse": 1,
+    "spectrum": 2,
+    "morph": 2,
+    "breathing": 1,
+    "mixpulse": 1,
+    "wave": 1,
+    "nightrider": 1,
+    "starlight": 2,
+}
+
+
+def chassis_loop(name, tempo):
+    """Seconds per chassis loop, as long as the keyboard's (None: static)."""
+    return LOOP_PERIODS[name] * period(tempo) if name in LOOP_PERIODS else None
+
+
+def _cos(x):
+    return 0.5 - 0.5 * math.cos(2 * math.pi * x)
+
+
+def _near_start(x):
+    return round((x % 1.0) * CHASSIS_STEPS) % CHASSIS_STEPS == 0
+
+
+_AT = {  # color at loop fraction x (0 = the shared clock's start)
+    "rainbow": lambda x, c1, c2: _hue(-x),  # the keyboard's right edge
+    "spectrum": lambda x, c1, c2: _hue(x),
+    "breathing": lambda x, c1, c2: _mix(BLACK, c1, _cos(x)),
+    "morph": lambda x, c1, c2: _mix(c1, c2, _cos(x)),
+    "mixpulse": lambda x, c1, c2: c1 if x % 1.0 < 0.5 else c2,
+    "wave": lambda x, c1, c2: c1 if _near_start(x) else c2,
+    "nightrider": lambda x, c1, c2: c1 if _near_start(x) else BLACK,
+}
+
+
+def chassis_frames(name, c1, c2, offset=0.0, seed=0, place=0.0):
+    """Keyframes of one zone, or None for the controller's own actions.
+    offset: loop fraction this zone is ahead of the shared clock; seed: the
+    zone's own stars; place: 0..1 across the zones (gradient)."""
+    c1, c2, n = tuple(c1), tuple(c2), CHASSIS_STEPS
+    if name in _AT:
+        return [_AT[name](j / n + offset, c1, c2) for j in range(n)]
+    if name == "starlight":  # random on purpose: each zone twinkles on its own
+        frames = [c2] * n
+        frames[random.Random(seed).randrange(n)] = c1
+        return frames
+    if name == "gradient":
+        return [_mix(c1, c2, place)]
+    return None
 
 
 # Typing ripple: a ring from each pressed key, painted over what the keyboard

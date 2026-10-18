@@ -28,7 +28,7 @@
             "source": "...", "keyboard": "per-key"},
   "model_forced": false,
   "zones": [{"id": "power", "label": "Power button", "group": "chassis", "verified": true,
-             "controller": "elc", "role": "power", "note": "...", "effects": ["static", "pulse", "morph"]}, ...],
+             "controller": "elc", "role": "power", "note": "...", "effects": ["static", "pulse", "morph", "breathing", ...]}, ...],
   "effects": ["static", "breathing", "wave", ...],
   "profile": {"name": "Alienware m15 R7 (camera-measured)", "chassis": "alienware-m15-r7-azerty", "method": "camera"},
   "custom": false,
@@ -49,8 +49,8 @@
   - `"reported"`: taken from other projects' community mappings.
   - `"untested"`: a generic model built from the controllers found.
 - `effects`: the names `SetKeyboardEffect` accepts on this model.
-  - On a zone keyboard, `breathing` runs as the controller's pulse, and
-    `wave`/`mixpulse` run as its morph.
+  - On a zone keyboard, every effect runs on the controller, as for the
+    chassis zones (see `SetZoneEffect`).
 - `chassis.keys`: the real key geometry in key units. A key can have two
   rectangles (the ISO Enter L shape).
 
@@ -79,7 +79,7 @@
 | `SetKeyboardEffect(s name, y tempo, (yyy) c1, (yyy) c2)` | See `effects` above. Per-key keyboards get 6 firmware effects plus 5 effects rendered by the daemon (rainbow, spectrum, morph, starlight, gradient). Tempo 1..30 is a period: higher is slower. |
 | `SetBrightness(y)` | 0..100. Keyboard: hardware dimmer. Zones: color scaling. |
 | `SetZoneColor(s zone, y r, y g, y b)` | Static color for one zone. |
-| `SetZoneEffect(s zone, s name, y tempo, (yyy) c1, (yyy) c2)` | `name` must be in that zone's `effects`: AW-ELC zones take static, pulse and morph (c1 → c2); legacy and WMI zones take static only. |
+| `SetZoneEffect(s zone, s name, y tempo, (yyy) c1, (yyy) c2)` | `name` must be in that zone's `effects`. AW-ELC zones take every keyboard effect: static, pulse and morph (c1 → c2) are the controller's own actions; the others are sent once as a loop of 6 colors the controller morphs through by itself. All zones run on one clock, shared with the keyboard's software effects (rainbow, spectrum, morph, breathing, starlight): at any instant every zone shows the color of the keyboard's right edge. A zone's `rainbow_phase` in the model shifts it around the hue wheel on the rainbow (the m15 R7 rear B runs opposite). Legacy and WMI zones take static only. |
 | `SetEnabled(b)` | All lights off, or back to the saved state. |
 | `SetRipple(b enabled, (yyy) color, y speed, s under, (yyy) background)` | Typing ripple, saved with the state. Per-key keyboards only (`ripple.available`). See below. |
 | `SelectModel(s id)` | Use one of the shipped models (`ListChassis` → `models`); `""` goes back to automatic detection. Emits `LayoutChanged`. |

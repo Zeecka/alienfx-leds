@@ -38,7 +38,7 @@ for _lib in (Path(__file__).resolve().parent.parent / "src", Path("/usr/local/li
     if (_lib / "alienfix" / "keycodes.py").is_file():
         sys.path.insert(0, str(_lib))
         break
-from alienfix.effects import RIPPLE_SPEED, RIPPLE_SPEEDS, SOFTWARE
+from alienfix.effects import RIPPLE_SPEED, RIPPLE_SPEEDS, SOFTWARE, SYNCED
 from alienfix.keycodes import load_evdev_names
 
 APP_ID = "io.github.zeecka.AlienFix"
@@ -49,25 +49,25 @@ IFACE = "io.github.zeecka.AlienFix1"
 PAGES = ("keyboard", "effects", "chassis", "ripple", "profile")
 MAX_ID = 254
 
-# Effect catalog: (id, label, chassis action or None, color pickers used).
-# The id is also the keyboard effect name; the daemon says which ones this
-# keyboard has, and each zone lists the actions it supports.
+# Effect catalog: (id, label, color pickers used). The id is the effect name
+# for the keyboard and the zones alike; the daemon says which ones this
+# keyboard has, and each zone lists the ones it supports.
 EFFECTS = [
-    ("static", "Static color", "static", 1),
-    ("pulse", "Pulse", "pulse", 1),
-    ("morph", "Color morph (1 → 2)", "morph", 2),
-    ("breathing", "Breathing", None, 1),
-    ("wave", "Wave", None, 2),
-    ("mixpulse", "Two-color pulse", None, 2),
-    ("nightrider", "Sweep", None, 1),
-    ("rainbow", "Rainbow wave", None, 0),
-    ("spectrum", "Spectrum cycle", None, 0),
-    ("starlight", "Starlight (stars on background)", None, 2),
-    ("gradient", "Gradient (left → right)", None, 2),
+    ("static", "Static color", 1),
+    ("pulse", "Pulse", 1),
+    ("morph", "Color morph (1 → 2)", 2),
+    ("breathing", "Breathing", 1),
+    ("wave", "Wave", 2),
+    ("mixpulse", "Two-color pulse", 2),
+    ("nightrider", "Sweep", 1),
+    ("rainbow", "Rainbow wave", 0),
+    ("spectrum", "Spectrum cycle", 0),
+    ("starlight", "Starlight (stars on background)", 2),
+    ("gradient", "Gradient (left → right)", 2),
 ]
-EFFECT_LABEL = {e: label for e, label, _z, _n in EFFECTS}
-EFFECT_ZONE = {e: zone for e, _l, zone, _n in EFFECTS}
-EFFECT_COLORS = {e: n for e, _l, _z, n in EFFECTS}
+EFFECT_LABEL = {e: label for e, label, _n in EFFECTS}
+EFFECT_COLORS = {e: n for e, _l, n in EFFECTS}
+ZONE_NATIVE = ("static", "pulse", "morph")  # the chassis controller's own actions
 
 
 def key_ids(layout):
@@ -695,7 +695,7 @@ class EffectsPage(Adw.PreferencesPage):
         kb = "keyboard" in chosen
         zone_fx = [set(self.zones[t].get("effects", ["static"])) for t in chosen if t != "keyboard"]
         self.entries = [
-            e for e, _l, zone, _n in EFFECTS if (not kb or e in self.available) and all(zone in fx for fx in zone_fx)
+            e for e, _l, _n in EFFECTS if (not kb or e in self.available) and all(e in fx for fx in zone_fx)
         ]
         self.combo.set_model(Gtk.StringList.new([EFFECT_LABEL[e] for e in self.entries]))
         self.combo.set_selected(self.entries.index(previous) if previous in self.entries else 0)
@@ -722,13 +722,19 @@ class EffectsPage(Adw.PreferencesPage):
             if t == "keyboard" and self.kb_type == "zones":
                 how = "keyboard zones, run by the lighting controller"
             elif t == "keyboard":
-                how = "software animation rendered by the service" if eid in SOFTWARE else "keyboard firmware effect"
+                how = (
+                    "software animation rendered by the service, in step with the chassis"
+                    if eid in (*SOFTWARE, *SYNCED)
+                    else "keyboard firmware effect"
+                )
                 if eid == "static":
                     how = "whole keyboard, one color"
-            elif eid == "static":
+            elif eid in ("static", "gradient"):
                 how = "controller static color"
-            else:
+            elif eid in ZONE_NATIVE:
                 how = "controller action"
+            else:
+                how = "color loop run by the controller, in step with the other lights (not verified on camera)"
             if t != "keyboard" and not self.zones[t].get("verified"):
                 how += " (this zone is not verified on this model)"
             elif t != "keyboard" and eid not in ("static",) and self.zones[t].get("note"):
@@ -750,7 +756,7 @@ class EffectsPage(Adw.PreferencesPage):
                 else:
                     self.win.call("SetKeyboardEffect", GLib.Variant("(sy(yyy)(yyy))", (eid, tempo, c1, c2)))
             else:
-                self.win.call("SetZoneEffect", GLib.Variant("(ssy(yyy)(yyy))", (t, EFFECT_ZONE[eid], tempo, c1, c2)))
+                self.win.call("SetZoneEffect", GLib.Variant("(ssy(yyy)(yyy))", (t, eid, tempo, c1, c2)))
 
     def update(self, state):
         eff = state.get("keyboard", {}).get("effect")
@@ -774,7 +780,7 @@ class ChassisPage(Adw.PreferencesPage):
         self.zones = {}
         text = self.DESCRIPTION
         if any("pulse" in z.get("effects", []) for z in zones):
-            text += " Pulse and morph effects are set from the Effects page."
+            text += " Effects are set from the Effects page."
         if any(z.get("role") == "power" or z["id"] == "power" for z in zones):
             text += " Reprogramming the power button takes about 2 s (the spinner turns meanwhile)."
         group = Adw.PreferencesGroup(title=title, description=text)
@@ -834,7 +840,7 @@ class ChassisPage(Adw.PreferencesPage):
                 text = (
                     "Static color"
                     if e["name"] == "static"
-                    else f"{e['name'].title()} · tempo {e.get('tempo', '?')} (set in Effects)"
+                    else f"{EFFECT_LABEL.get(e['name'], e['name'])} · tempo {e.get('tempo', '?')} (set in Effects)"
                 )
                 if not z["verified"]:
                     text += " · not verified on this model"

@@ -38,15 +38,6 @@ DATA = Path(os.environ.get("ALIENFIX_DATA", "/usr/local/share/alienfix"))
 READ_ONLY = {"GetState", "GetLayout", "ListChassis"}
 ALL_IDS = frozenset(range(profile.MAX_ID + 1))
 AUTH_TTL = 30.0
-# Keyboard effects on a zone keyboard: what each name becomes on ELC zones.
-ZONE_KB_EFFECT = {
-    "static": "static",
-    "pulse": "pulse",
-    "breathing": "pulse",
-    "morph": "morph",
-    "wave": "morph",
-    "mixpulse": "morph",
-}
 
 log = logging.getLogger("alienfixd")
 
@@ -115,6 +106,7 @@ class Daemon:
         self.evdev_names = keycodes.load_evdev_names()
         self.keys = keycodes.KeyWatcher(self._on_key_press, self.hw.keyboard_usb())
         self.elc_worker = Worker("chassis", self._apply_chassis)
+        self.fx_epoch = None  # monotonic start of the chassis loops: their shared clock
         self.bus_type = bus_type
         self.conn: Gio.DBusConnection  # set by run()
 
@@ -141,6 +133,7 @@ class Daemon:
         self.model = m
         self.zones = {z["id"]: z for z in m["zones"]}
         self.zone_ids = list(self.zones)
+        self.elc_ids = [z for z in self.zone_ids if self.zones[z]["controller"] == "elc"]  # effect phases
         self.kb_type = m.get("keyboard", {"type": "none"})["type"]
         log.info("model %s (%s, %s keyboard, %d zones)", m["id"], m["support"], self.kb_type, len(self.zones))
 
@@ -223,14 +216,25 @@ class Daemon:
             self.hw.keyboard_static(colors, bright)
 
     def _apply_chassis(self, job):
+        """Chassis loops share one clock (self.fx_epoch, also the keyboard's):
+        the start of the power button's loop if it has one, else of the other
+        zones'. Each zone is offset by the time its loop starts after it."""
         with self.lock:
             d = self.state.data
             pct = d["brightness"] if d["enabled"] else 0
             zones = {z: protocol.scale(c, pct) for z, c in d["zones"].items()}
-            fx = {z: {**e, "c1": zones[z], "c2": protocol.scale(e["c2"], pct)} for z, e in d["zone_effects"].items()}
+            fx = {z: {**e, "c1": list(d["zones"][z])} for z, e in d["zone_effects"].items()}  # unscaled
             if not d["enabled"]:
                 fx = {z: {**e, "name": "static"} for z, e in fx.items()}
             spec = dict(self.zones)
+        power = [z for z in spec.values() if z.get("role") == "power"]
+        power_loops = any(effects.chassis_loop(fx[z["id"]]["name"], fx[z["id"]]["tempo"]) for z in power)
+        if job.get("power"):
+            for z in power:
+                self.hw.power(zones[z["id"]], self._zone_fx(z["id"], fx[z["id"]], pct, None), index=z["index"])
+            if power_loops:
+                self.fx_epoch = time.monotonic()  # the play command just ran
+                job["zones"] = True  # the other loops follow the new clock
         if job.get("zones"):
             # index order: the m15 R7 sequence verified on camera, byte for byte
             plain = sorted(
@@ -238,20 +242,43 @@ class Daemon:
                 key=lambda z: (z["controller"], z.get("index", 0), z.get("mask", 0)),
             )
             by = {c: [z for z in plain if z["controller"] == c] for c in models.CONTROLLERS}
-            static = [(z["index"], zones[z["id"]]) for z in by["elc"] if fx[z["id"]]["name"] == "static"]
-            animated = [(z["index"], fx[z["id"]]) for z in by["elc"] if fx[z["id"]]["name"] != "static"]
+            first = {z["id"]: self._zone_fx(z["id"], fx[z["id"]], pct, None) for z in by["elc"]}
+            static = [(z["index"], first[z["id"]]["c1"]) for z in by["elc"] if first[z["id"]]["name"] == "static"]
+            animated = [z for z in by["elc"] if first[z["id"]]["name"] != "static"]
             if static:
                 self.hw.zones(static)
             if animated:
-                self.hw.zone_effects(animated)
+                # the loops start once the whole transaction is in (64 ms per command)
+                draft = protocol.elc_zone_effects([(z["index"], first[z["id"]]) for z in animated])
+                start = time.monotonic() + len(draft) * protocol.ELC_COMMAND_TIME
+                if not power_loops or self.fx_epoch is None:
+                    self.fx_epoch = start
+                self.hw.zone_effects([(z["index"], self._zone_fx(z["id"], fx[z["id"]], pct, start)) for z in animated])
             if by["legacy"]:
                 self.hw.legacy_zones([(z["mask"], zones[z["id"]]) for z in by["legacy"]])
             if by["wmi"]:
                 self.hw.wmi_zones([(z["index"], zones[z["id"]]) for z in by["wmi"]])
-        if job.get("power"):
-            for z in spec.values():
-                if z.get("role") == "power":
-                    self.hw.power(zones[z["id"]], fx[z["id"]], index=z["index"])
+
+    def _zone_fx(self, zid, e, pct, start):
+        """The effect sent for one ELC zone, scaled to the brightness. start:
+        when its loop will start (None: it defines the clock)."""
+        out = {**e, "c1": protocol.scale(e["c1"], pct), "c2": protocol.scale(e["c2"], pct)}
+        loop = effects.chassis_loop(e["name"], e["tempo"])
+        if loop:
+            out["loop"] = loop
+        offset = 0.0
+        if loop and start is not None and self.fx_epoch is not None:
+            offset = (start - self.fx_epoch) / loop
+        if e["name"] == "rainbow":
+            offset += self.zones[zid].get("rainbow_phase", 0)
+        i, n = self.elc_ids.index(zid), len(self.elc_ids)
+        frames = effects.chassis_frames(e["name"], e["c1"], e["c2"], offset, seed=i, place=i / max(1, n - 1))
+        frames = [protocol.scale(c, pct) for c in frames or ()]
+        if len(frames) == 1:  # gradient: one color per zone
+            return {**out, "name": "static", "c1": frames[0]}
+        if frames:
+            out["frames"] = frames
+        return out
 
     # ---- software effects (daemon-rendered keyboard animation) -------------
 
@@ -264,7 +291,10 @@ class Daemon:
             and self.kb_type == "per-key"
             and (
                 d["ripple"]["enabled"]
-                or (d["keyboard"]["mode"] == "effect" and d["keyboard"]["effect"]["name"] in effects.SOFTWARE)
+                or (
+                    d["keyboard"]["mode"] == "effect"
+                    and d["keyboard"]["effect"]["name"] in (*effects.SOFTWARE, *effects.SYNCED)
+                )
             )
         )
 
@@ -297,8 +327,9 @@ class Daemon:
             if key != current:
                 current, t0, drawn = key, now, False
                 render = effects.any_renderer(eff["name"]) if key[0] == "effect" else None
-            if render:
-                base = render(pos, width, now - t0, eff["tempo"], eff["c1"], eff["c2"])
+            if render:  # on the chassis' clock when it has one: same color at the same time
+                t = now - (t0 if self.fx_epoch is None else self.fx_epoch)
+                base = render(pos, width, t, eff["tempo"], eff["c1"], eff["c2"])
             elif key[0] == "color":
                 base = {i: tuple(rp["background"]) for i in pos}
             else:
@@ -458,7 +489,7 @@ class Daemon:
         if self.kb_type == "zones":
             kz = [z for z in self.zones.values() if z.get("group") == "keyboard"]
             common = set.intersection(*(set(models.zone_effects(z)) for z in kz))
-            return [n for n, target in ZONE_KB_EFFECT.items() if target in common]
+            return [n for n in validate.EFFECTS if n in common]
         return []
 
     def m_GetLayout(self, _s):
@@ -561,7 +592,7 @@ class Daemon:
             for z in self._keyboard_zones():  # zone keyboard: the controller animates
                 self.state.data["zones"][z] = list(eff["c1"])
                 self.state.data["zone_effects"][z] = {
-                    "name": ZONE_KB_EFFECT[eff["name"]],
+                    "name": eff["name"],
                     "tempo": eff["tempo"],
                     "c2": list(eff["c2"]),
                 }

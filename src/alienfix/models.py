@@ -11,6 +11,9 @@ A model (data/models/*.json) describes one machine family:
      "zones": [{"id": "power", "label": "Power button", "controller": "elc",
                 "index": 2, "role": "power", "group": "chassis", "verified": true}, ...]}
 
+- rainbow_phase (optional, 0..1): how far around the hue wheel the zone runs
+  from the others on the rainbow (0.5 = the opposite color; m15 R7 rear B).
+
 - "per-key": the keyboard is a Darfon-style per-key controller; its key map
   comes from a profile (profile.py).
 - "zones": the keyboard backlight is made of controller zones (group
@@ -28,8 +31,7 @@ import json
 import re
 from pathlib import Path
 
-from .protocol import ZONE_EFFECTS
-from .validate import Invalid
+from .validate import ZONE_EFFECTS, Invalid
 
 CONTROLLERS = ("elc", "legacy", "wmi")
 SUPPORT = ("verified", "reported", "untested")
@@ -76,6 +78,9 @@ def check(m):
             or len(z.get("note", "")) > 200
         ):
             raise Invalid(f"{m['id']}/{z['id']}: label or note")
+        phase = z.get("rainbow_phase", 0)
+        if isinstance(phase, bool) or not isinstance(phase, (int, float)) or not 0 <= phase < 1:
+            raise Invalid(f"{m['id']}/{z['id']}: rainbow_phase")
         if z.get("role") not in (None, "power"):
             raise Invalid(f"{m['id']}/{z['id']}: role")
         if z.get("role") == "power" and z["controller"] != "elc":
@@ -96,8 +101,8 @@ def load(directory):
 
 
 def zone_effects(zone):
-    """Effects a zone supports: the ELC runs pulse/morph itself; the others
-    only hold a color (software animation of them is not attempted)."""
+    """Effects a zone supports: the ELC runs every effect itself (pulse, morph,
+    keyframe loops); the others only hold a color."""
     return ZONE_EFFECTS if zone["controller"] == "elc" else ("static",)
 
 

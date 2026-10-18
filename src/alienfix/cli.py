@@ -6,7 +6,7 @@ alienfix keys Q=#ff0000 L=#00ff00     per key, evdev names (see `alienfix layout
 alienfix effect wave [--tempo 5] [#c1] [#c2]
 alienfix brightness 60
 alienfix zone power '#ffffff'         zone ids: see `alienfix zones`
-alienfix zone lid pulse [--tempo 6] [#c1] [#c2]
+alienfix zone lid pulse [--tempo 6] [#c1] [#c2]   any effect: rainbow, breathing, ...
 alienfix models                       the model catalog (* = active)
 alienfix model dell-g15-5520 | auto   use that model's lighting map
 alienfix on | off
